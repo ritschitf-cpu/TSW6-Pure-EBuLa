@@ -71,7 +71,7 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   void move(int d) {
     if(points.isEmpty)return;
     setState((){
-      marker=(marker+d).clamp(0,points.length-1);
+      marker=(marker+d).clamp(0,points.length-1).toInt();
       speedRepeat=points[marker].speed ?? speedRepeat;
       page=marker;
     });
@@ -91,8 +91,8 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     else if(k=='UD') toggleFull();
     else if(k=='▲') move(-1);
     else if(k=='▼') move(1);
-    else if(k=='⯈') setState(()=>page=(page+6).clamp(0,points.length>1?points.length-1:0));
-    else if(k=='⯇') setState(()=>page=(page-6).clamp(0,points.length>1?points.length-1:0));
+    else if(k=='⯈') setState(()=>page=(page+6).clamp(0,points.length>1?points.length-1:0).toInt());
+    else if(k=='⯇') setState(()=>page=(page-6).clamp(0,points.length>1?points.length-1:0).toInt());
     else if(k=='E') setState(()=>markerPause=!markerPause);
   }
 
