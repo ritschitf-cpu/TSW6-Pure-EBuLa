@@ -746,7 +746,7 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
             ])),
             if(train?.id==t.id&&train?.serviceType==type)Icon(Icons.check,color:fg,size:18)
           ])
-        )
+        ))
   ]);
 
   Widget _keylightPanel()=>ListView(padding:const EdgeInsets.all(10),children:[
