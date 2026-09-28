@@ -2,8 +2,12 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+part 'ebula_editor.dart';
 
 void main() => runApp(const PureEBuLaApp());
 
@@ -50,26 +54,46 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 class StopPoint {
   final String name; final double km; final int? speed;
   final String? arrival; final String? departure; final String? note;
-  const StopPoint({required this.name, required this.km, this.speed, this.arrival, this.departure, this.note});
+  final double? latitude; final double? longitude;
+  final String? kind; final String? track;
+  const StopPoint({
+    required this.name, required this.km, this.speed, this.arrival, this.departure,
+    this.note, this.latitude, this.longitude, this.kind, this.track,
+  });
   factory StopPoint.fromJson(Map<String,dynamic> j) => StopPoint(
-    name: j['name'] as String, km: (j['km'] as num).toDouble(),
-    speed: (j['speed'] as num?)?.toInt(), arrival: j['arrival'] as String?,
-    departure: j['departure'] as String?, note: j['note'] as String?,
+    name: (j['name'] ?? j['text'] ?? '') as String,
+    km: ((j['km'] ?? 0) as num).toDouble(),
+    speed: (j['speed'] as num?)?.toInt(),
+    arrival: j['arrival'] as String?,
+    departure: j['departure'] as String?,
+    note: j['note'] as String?,
+    latitude: (j['latitude'] as num?)?.toDouble(),
+    longitude: (j['longitude'] as num?)?.toDouble(),
+    kind: j['kind'] as String?,
+    track: j['track'] as String?,
   );
+  Map<String,dynamic> toJson()=> {
+    'name':name,'km':km,'speed':speed,'arrival':arrival,'departure':departure,
+    'note':note,'latitude':latitude,'longitude':longitude,'kind':kind,'track':track,
+  }..removeWhere((k,v)=>v==null);
 }
 
 class TimetableData {
   final String id, trainNumber, service, serviceType, validity, date, vehicle;
   final List<String> serviceTypes;
   final int maxSpeed, lengthMeters, massTons;
+  final String brakeHundredths, pzbType, notes;
   final List<StopPoint> stops;
   const TimetableData({
     required this.id, required this.trainNumber, required this.service, required this.serviceType,
     required this.validity, required this.date, required this.vehicle, required this.serviceTypes,
     required this.maxSpeed, required this.lengthMeters, required this.massTons,
-    required this.stops,
+    this.brakeHundredths='', this.pzbType='', this.notes='', required this.stops,
   });
-  TimetableData withServiceType(String type)=>TimetableData(id:id,trainNumber:trainNumber,service:service,serviceType:type,validity:validity,date:date,vehicle:vehicle,maxSpeed:maxSpeed,lengthMeters:lengthMeters,massTons:massTons,stops:stops,serviceTypes:serviceTypes);
+  TimetableData withServiceType(String type)=>TimetableData(
+    id:id,trainNumber:trainNumber,service:service,serviceType:type,validity:validity,date:date,
+    vehicle:vehicle,maxSpeed:maxSpeed,lengthMeters:lengthMeters,massTons:massTons,
+    brakeHundredths:brakeHundredths,pzbType:pzbType,notes:notes,stops:stops,serviceTypes:serviceTypes);
   factory TimetableData.fromJson(Map<String,dynamic> j) => TimetableData(
     id: j['id'] as String, trainNumber: j['trainNumber'] as String,
     service: j['service'] as String,
@@ -77,10 +101,13 @@ class TimetableData {
     serviceTypes: (j['serviceTypes'] as List?)?.map((e)=>e.toString()).toList() ?? <String>[(j['serviceType'] as String?) ?? ((j['trainNumber'] as String).startsWith('ICE') ? 'ICE' : ((j['trainNumber'] as String).startsWith('IC') ? 'IC' : 'S-Bahn'))],
     validity: j['validity'] as String,
     date: j['date'] as String, vehicle: j['vehicle'] as String,
-    maxSpeed: (j['maxSpeed'] as num).toInt(),
-    lengthMeters: (j['lengthMeters'] as num).toInt(),
-    massTons: (j['massTons'] as num).toInt(),
-    stops: (j['stops'] as List).map((e) => StopPoint.fromJson(e as Map<String,dynamic>)).toList(),
+    maxSpeed: (j['maxSpeed'] as num?)?.toInt() ?? 0,
+    lengthMeters: (j['lengthMeters'] as num?)?.toInt() ?? 0,
+    massTons: (j['massTons'] as num?)?.toInt() ?? 0,
+    brakeHundredths: (j['brakeHundredths'] ?? '').toString(),
+    pzbType: (j['pzbType'] ?? '').toString(),
+    notes: (j['notes'] ?? '').toString(),
+    stops: (j['stops'] as List? ?? const []).map((e) => StopPoint.fromJson(e as Map<String,dynamic>)).toList(),
   );
 }
 
@@ -106,6 +133,12 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   String keyLightMode='orange';
   String overlay='';
   String displayMode='time';
+  List<TimetableData> customTimetables=[];
+  Map<String,dynamic> liveState={};
+  Timer? liveTimer;
+  double? liveLatitude, liveLongitude;
+  String? liveSimTime;
+  String liveRouteHint='';
   String bridgeHost='192.168.178.100';
   int bridgePort=8080;
   String bridgeStatus='Nicht verbunden';
@@ -120,6 +153,7 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     super.initState();
     load();
     _lastRealTick = DateTime.now();
+    liveTimer = Timer.periodic(const Duration(milliseconds: 600), (_) => pollBridge());
     clockTimer = Timer.periodic(const Duration(milliseconds:250), (_) {
       if (!paused && mounted) {
         final now = DateTime.now();
@@ -145,13 +179,92 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   Future<void> load() async {
     final list=<TimetableData>[];
     for(final f in files) {
-      final raw=await rootBundle.loadString(f);
-      list.add(TimetableData.fromJson(jsonDecode(raw) as Map<String,dynamic>));
+      try {
+        final raw=await rootBundle.loadString(f);
+        list.add(TimetableData.fromJson(jsonDecode(raw) as Map<String,dynamic>));
+      } catch (_) {}
+    }
+    final prefs=await SharedPreferences.getInstance();
+    final saved=prefs.getStringList('custom_timetables') ?? const <String>[];
+    final customs=<TimetableData>[];
+    for(final raw in saved) {
+      try { customs.add(TimetableData.fromJson(jsonDecode(raw) as Map<String,dynamic>)); } catch (_) {}
     }
     if(!mounted) return;
-    setState(() { all=list; train=list.first; resetPosition(); });
+    setState(() {
+      customTimetables=customs;
+      all=[...list,...customs];
+      train=null;
+      resetPosition();
+    });
   }
-  @override void dispose(){clockTimer?.cancel();super.dispose();}
+  @override void dispose(){clockTimer?.cancel();liveTimer?.cancel();super.dispose();}
+
+  Future<void> pollBridge() async {
+    final host=bridgeHost.trim();
+    if(host.isEmpty) return;
+    try {
+      final client=HttpClient()..connectionTimeout=const Duration(seconds:2);
+      final req=await client.get(host, bridgePort, '/api/state');
+      req.headers.set(HttpHeaders.acceptHeader,'application/json');
+      final res=await req.close().timeout(const Duration(seconds:3));
+      if(res.statusCode<200 || res.statusCode>=300) { client.close(force:true); return; }
+      final raw=await res.transform(utf8.decoder).join();
+      client.close(force:true);
+      final data=jsonDecode(raw) as Map<String,dynamic>;
+      final tsw=(data['tsw'] as Map?)?.cast<String,dynamic>() ?? {};
+      final pos=(data['position'] as Map?)?.cast<String,dynamic>() ?? {};
+      final sim=(data['simTime'] ?? '').toString();
+      final lat=(pos['latitude'] as num?)?.toDouble();
+      final lon=(pos['longitude'] as num?)?.toDouble();
+      if(!mounted) return;
+      setState(() {
+        liveState=data;
+        liveLatitude=lat;
+        liveLongitude=lon;
+        liveSimTime=sim.isEmpty || sim=='null' ? null : sim;
+        liveRouteHint=(tsw['routeHint'] ?? '').toString();
+        bridgeStatus=(tsw['connected']==true) ? 'Verbunden · TSW live' : 'Bridge verbunden · TSW wartet';
+        if(liveSimTime!=null) {
+          final dt=DateTime.tryParse(liveSimTime!.replaceFirst('Z','+00:00'))?.toLocal();
+          if(dt!=null) clock=DateTime(clock.year,clock.month,clock.day,dt.hour,dt.minute,dt.second);
+        }
+        if(displayMode=='location' && liveLatitude!=null && liveLongitude!=null && train!=null) {
+          final idx=nearestGeoIndex(train!.stops,liveLatitude!,liveLongitude!);
+          if(idx!=null) marker=idx;
+        } else if(displayMode=='time' && liveSimTime!=null && train!=null) {
+          marker=markerForTime(liveSimTime!);
+        }
+      });
+    } catch (_) {}
+  }
+
+  int markerForTime(String iso) {
+    final dt=DateTime.tryParse(iso.replaceFirst('Z','+00:00'))?.toLocal();
+    if(dt==null || train==null || train!.stops.isEmpty) return marker;
+    final target=dt.hour*3600+dt.minute*60+dt.second;
+    int best=0; var bestDiff=1<<30;
+    for(var i=0;i<train!.stops.length;i++){
+      final t=train!.stops[i].arrival ?? train!.stops[i].departure;
+      if(t==null) continue;
+      final p=t.split(':'); if(p.length<2) continue;
+      final sec=(int.tryParse(p[0])??0)*3600+(int.tryParse(p[1])??0)*60;
+      final diff=(sec-target).abs();
+      if(diff<bestDiff){bestDiff=diff;best=i;}
+    }
+    return best;
+  }
+
+  int? nearestGeoIndex(List<StopPoint> stops,double lat,double lon){
+    int? best; double bestD=double.infinity;
+    for(var i=0;i<stops.length;i++){
+      final p=stops[i];
+      if(p.latitude==null || p.longitude==null) continue;
+      final d=math.pow(p.latitude!-lat,2)+math.pow(p.longitude!-lon,2);
+      if(d<bestD){bestD=d.toDouble();best=i;}
+    }
+    return best;
+  }
 
   void resetPosition(){
     marker=0; page=0; markerPause=false;
@@ -181,7 +294,7 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     else if(a=='FSD'){setState(()=>overlay=overlay=='FSD'?'':'FSD');}
     else if(a=='GW'){setState(()=>opposite=!opposite);}
     else if(a=='Zeit'){showTime();}
-    else if(a=='S'){setState(() { paused=!paused; _lastRealTick=DateTime.now(); });}
+    else if(a=='S'){ if(train==null || train!.stops.isEmpty){showEditor();} else {setState(() { paused=!paused; _lastRealTick=DateTime.now(); });} }
     else if(a=='I'){showKeyLightSettings();}
     else if(a=='St'){showBridge();}
     else if(a=='-5s'){adjust(-5);}
@@ -252,13 +365,16 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     try {
       final client=HttpClient();
       client.connectionTimeout=const Duration(seconds:3);
-      final req=await client.get(host, bridgePort, '/');
+      final req=await client.get(host, bridgePort, '/api/state');
       req.headers.set(HttpHeaders.acceptHeader, 'application/json');
       final res=await req.close().timeout(const Duration(seconds:4));
-      await res.drain();
+      final body=await res.transform(utf8.decoder).join();
       client.close(force:true);
+      if(res.statusCode<200 || res.statusCode>=300) throw Exception('HTTP ${res.statusCode}');
       if(!mounted) return;
-      setState(() { bridgeBusy=false; bridgeStatus='Verbunden'; });
+      final data=jsonDecode(body) as Map<String,dynamic>;
+      final tsw=(data['tsw'] as Map?)?.cast<String,dynamic>() ?? {};
+      setState(() { bridgeBusy=false; bridgeStatus=tsw['connected']==true ? 'Verbunden · TSW live' : 'Verbunden · TSW wartet'; });
     } catch (_) {
       if(!mounted) return;
       setState(() { bridgeBusy=false; bridgeStatus='Nicht erreichbar'; });
@@ -356,10 +472,10 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   );
 
   Widget topKeys(){
-    const labels=['aus','S','I','St','V>0','V=0','✸','◑','UD'];
+    const labels=['aus','S','i','St','-5s','+5s','✸','◑','UD'];
     return Container(height:49,color:const Color(0xff101010),padding:const EdgeInsets.fromLTRB(10,7,10,4),child:Row(
       children:labels.map((l)=>Expanded(child:Padding(padding:const EdgeInsets.symmetric(horizontal:4),child:physicalKey(l,()=>action(
-        l=='S'?'S':l=='I'?'I':l=='St'?'St':l=='✸'?'Tag/Nacht':l=='◑'?'Hell/Dunkel':l=='UD'?'UD':''
+        l=='S'?'S':l=='i'?'I':l=='St'?'St':l=='-5s'?'-5s':l=='+5s'?'+5s':l=='✸'?'Tag/Nacht':l=='◑'?'Hell/Dunkel':l=='UD'?'UD':''
       ))))).toList(),
     ));
   }
@@ -404,69 +520,85 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   )));
 
   Widget screen(){
-    final list=train?.stops.skip(page).take(8).toList() ?? const <StopPoint>[];
-    return Stack(
-      children:[
-        Container(
-          decoration:BoxDecoration(color:bg,border:Border.all(color:const Color(0xff9aa1a5),width:2)),
-          child:Column(children:[header(),routeBar(),Expanded(child:table(list)),status(),]),
-        ),
-        if(overlay=='FSD') fsdOverlay(),
-      ],
-    );
+    final list=train?.stops.skip(page).take(10).toList() ?? const <StopPoint>[];
+    return Stack(children:[
+      Container(
+        decoration:BoxDecoration(color:bg,border:Border.all(color:border,width:1)),
+        child:Column(children:[header(),routeBar(),table(list),status()]),
+      ),
+      if(overlay=='FSD') fsdOverlay(),
+    ]);
   }
 
-  Widget header()=>SizedBox(height:43,child:Row(children:[
-    headerCell(train?.trainNumber??'---',18,17),
-    headerCell('EBuLa-Karte gültig!',38,12),
-    headerCell(train?.date??'--.--.----',18,12),
-    headerCell(clockText(),26,17,red:paused),
+  Widget header()=>SizedBox(height:42,child:Row(children:[
+    headerCell(train?.trainNumber??'',18,17),
+    headerCell(train?.service??'',40,16),
+    headerCell(train?.date??'',18,13),
+    headerCell(clockText(),18,16,red:paused),
   ]));
 
   Widget headerCell(String text,int flex,double size,{bool red=false})=>Expanded(flex:flex,child:Container(
     alignment:Alignment.center,decoration:BoxDecoration(border:Border.all(color:border)),
-    child:FittedBox(child:Text(text,style:TextStyle(color:red?const Color(0xffd94a4a):fg,fontWeight:FontWeight.bold,fontSize:size))),
+    child:FittedBox(fit:BoxFit.scaleDown,child:Text(text,style:TextStyle(color:red?const Color(0xffb00000):fg,fontWeight:FontWeight.bold,fontSize:size))),
   ));
 
-  Widget routeBar()=>Container(height:27,color:bar,padding:const EdgeInsets.symmetric(horizontal:6),child:Row(children:[
-    Text(opposite?'/l':'/r',style:TextStyle(color:fg,fontWeight:FontWeight.bold)),
-    const SizedBox(width:10),
-    Expanded(child:Text((train?.serviceType??'')+'  '+(train?.service??''),overflow:TextOverflow.ellipsis,style:TextStyle(color:fg,fontSize:10))),
-    Text('Nächster Halt: '+(point?.name??'--'),style:TextStyle(color:fg,fontSize:9,fontWeight:FontWeight.bold)),
+  Widget routeBar()=>SizedBox(height:27,child:Row(children:[
+    Expanded(flex:18,child:Container(alignment:Alignment.centerLeft,padding:const EdgeInsets.symmetric(horizontal:5),decoration:BoxDecoration(border:Border.all(color:border)),child:Text(point?.speed==null?'':'ab km '+(point?.km.toStringAsFixed(1)??'')+': '+point!.speed.toString()+' km/h',style:TextStyle(color:fg,fontSize:10,fontWeight:FontWeight.bold)))),
+    Expanded(flex:62,child:Container(decoration:BoxDecoration(border:Border.all(color:border)))),
+    Expanded(flex:20,child:Container(alignment:Alignment.center,padding:const EdgeInsets.symmetric(horizontal:4),decoration:BoxDecoration(border:Border.all(color:border)),child:Text(train==null?'Nächster Halt:':'Nächster Halt: '+(point?.name??''),maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:fg,fontSize:10,fontWeight:FontWeight.bold)))),
   ]));
 
-  Widget table(List<StopPoint> rows)=>Column(children:[
-    SizedBox(height:24,child:Row(children:[
-      cell('V',9,true,true),cell('km',10,true,true),cell('Fahrweg',18,true,true),cell('Betriebsstelle / Text',35,false,true),cell('Ank',12,true,true),cell('Abf',12,true,true),
-    ])),
-    Expanded(child:ListView.builder(itemCount:rows.length,itemBuilder:(_,i){
+  Widget table(List<StopPoint> rows)=>Expanded(child:ListView.builder(
+    itemCount:rows.length,
+    itemBuilder:(_,i){
       final p=rows[i], active=page+i==marker;
       return SizedBox(height:48,child:Row(children:[
-        cell(p.speed?.toString()??'',9,true,active),cell(p.km.toStringAsFixed(1),10,true,active),
-        Expanded(flex:18,child:CustomPaint(painter:TrackPainter(opposite:opposite,active:active))),
-        Expanded(flex:35,child:Container(
-          color:active?(dark?const Color(0xff30383c):const Color(0xffd5d9db)):null,
-          alignment:Alignment.centerLeft,padding:const EdgeInsets.symmetric(horizontal:5),
-          child:Text(p.note??p.name,maxLines:2,overflow:TextOverflow.ellipsis,style:TextStyle(color:fg,fontSize:10,fontWeight:active?FontWeight.bold:FontWeight.normal)),
+        Expanded(flex:14,child:Container(
+          decoration:BoxDecoration(border:Border(right:BorderSide(color:border,width:1))),
+          child:Stack(children:[
+            Center(child:Text(p.speed?.toString()??'',style:TextStyle(color:fg,fontSize:12,fontWeight:FontWeight.bold))),
+            if(active) Align(alignment:Alignment.centerRight,child:CustomPaint(size:const Size(12,12),painter:MarkerDiamondPainter(color:fg))),
+          ]),
         )),
-        cell(p.arrival??'',12,true,p.arrival!=null),cell(p.departure??'',12,true,p.departure!=null),
+        Expanded(flex:13,child:Container(alignment:Alignment.center,decoration:BoxDecoration(border:Border(right:BorderSide(color:border,width:1))),child:Text(p.km.toStringAsFixed(1).replaceAll('.',','),style:TextStyle(color:fg,fontSize:12)))),
+        Expanded(flex:43,child:Container(
+          alignment:Alignment.centerLeft,padding:const EdgeInsets.symmetric(horizontal:7),
+          decoration:BoxDecoration(border:Border(right:BorderSide(color:border,width:1))),
+          child:Row(children:[
+            if(p.kind!=null) Padding(padding:const EdgeInsets.only(right:5),child:Text(p.kind!,style:TextStyle(color:fg,fontSize:10,fontWeight:FontWeight.bold))),
+            Expanded(child:Text(p.note??p.name,maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:fg,fontSize:11,fontWeight:active?FontWeight.bold:FontWeight.normal))),
+          ]),
+        )),
+        Expanded(flex:15,child:Container(alignment:Alignment.center,decoration:BoxDecoration(border:Border(right:BorderSide(color:border,width:1))),child:Text(p.arrival??'',style:TextStyle(color:fg,fontSize:11)))),
+        Expanded(flex:15,child:Container(alignment:Alignment.center,child:Text(p.departure??'',style:TextStyle(color:fg,fontSize:11)))),
       ]));
-    })),
-  ]);
-
-  Widget cell(String text,int flex,bool center,bool bold)=>Expanded(flex:flex,child:Container(
-    alignment:center?Alignment.center:Alignment.centerLeft,padding:const EdgeInsets.symmetric(horizontal:3),
-    decoration:BoxDecoration(border:Border(bottom:BorderSide(color:border,width:.7))),
-    child:Text(text,maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:fg,fontSize:10,fontWeight:bold?FontWeight.bold:FontWeight.normal)),
+    },
   ));
 
-  Widget status()=>Container(height:25,color:bar,padding:const EdgeInsets.symmetric(horizontal:5),child:Row(children:[
-    Text((displayMode=='location'?'ORT':'')+' '+(opposite?'RW/l':'RW/r'),style:TextStyle(color:fg,fontSize:9,fontWeight:FontWeight.bold)),
-    const SizedBox(width:12),Text('GSM-R',style:TextStyle(color:fg,fontSize:9)),
-    const Spacer(),Text('V='+(point?.speed?.toString()??train?.maxSpeed.toString()??'0')+' km/h',style:TextStyle(color:fg,fontSize:9,fontWeight:FontWeight.bold)),
-    const SizedBox(width:12),Text('km '+(point?.km.toStringAsFixed(1)??'--'),style:TextStyle(color:fg,fontSize:9)),
-    const SizedBox(width:12),Text(markerPause?'PAUSE':(marker+1).toString()+'/'+(train?.stops.length??0).toString(),style:TextStyle(color:markerPause?const Color(0xffd94a4a):fg,fontSize:9,fontWeight:FontWeight.bold)),
+  Widget status()=>Container(height:25,color:night?const Color(0xff172332):(dark?const Color(0xff252a2d):const Color(0xffefede5)),padding:const EdgeInsets.symmetric(horizontal:5),child:Row(children:[
+    Text(displayMode=='location'?'Ortung':displayMode=='time'?'Zeit':'manuell',style:TextStyle(color:fg,fontSize:10)),
+    const Spacer(),
+    Text(opposite?'RW / l':'RW / r',style:TextStyle(color:fg,fontSize:10)),
+    const SizedBox(width:16),Text('600 A',style:TextStyle(color:fg,fontSize:10)),
+    const SizedBox(width:16),Text('GSM-R',style:TextStyle(color:fg,fontSize:10)),
+    const SizedBox(width:16),Text(delayText(),style:TextStyle(color:fg,fontSize:10)),
+    const SizedBox(width:16),Text('ESF',style:TextStyle(color:fg,fontSize:10)),
+    const SizedBox(width:10),Text('+ 0 kWh',style:TextStyle(color:fg,fontSize:10)),
+    const SizedBox(width:10),Text('- 0 kWh',style:TextStyle(color:fg,fontSize:10)),
   ]));
+
+  String delayText(){
+    if(train==null || liveSimTime==null) return '0 min';
+    final dt=DateTime.tryParse(liveSimTime!.replaceFirst('Z','+00:00'))?.toLocal();
+    final p=point;
+    if(dt==null || p==null) return '0 min';
+    final t=p.arrival ?? p.departure; if(t==null) return '0 min';
+    final q=t.split(':'); if(q.length<2) return '0 min';
+    final scheduled=(int.tryParse(q[0])??0)*60+(int.tryParse(q[1])??0);
+    final actual=dt.hour*60+dt.minute;
+    final d=actual-scheduled;
+    return (d>=0?'+':'')+d.toString()+' min';
+  }
 
   Widget fsdOverlay()=>Positioned.fill(
     child:Container(
@@ -502,6 +634,17 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   );
 
 
+}
+
+class MarkerDiamondPainter extends CustomPainter {
+  final Color color;
+  MarkerDiamondPainter({required this.color});
+  @override void paint(Canvas c,Size s){
+    final p=Paint()..color=color;
+    final path=Path()..moveTo(s.width/2,0)..lineTo(s.width,s.height/2)..lineTo(s.width/2,s.height)..lineTo(0,s.height/2)..close();
+    c.drawPath(path,p);
+  }
+  @override bool shouldRepaint(covariant MarkerDiamondPainter old)=>old.color!=color;
 }
 
 class TrackPainter extends CustomPainter {
