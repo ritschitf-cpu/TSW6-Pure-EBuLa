@@ -59,7 +59,7 @@ extension EBuLaEditor on _EBuLaScreenState {
             controller:c,
             onChanged:onChanged,
             style:TextStyle(color:fg,fontSize:10),
-            decoration:InputDecoration(labelText:label,labelStyle:TextStyle(color:fg.withOpacity(.65),fontSize:9),isDense:true,border:OutlineInputBorder(borderSide:BorderSide(color:border))),
+            decoration:InputDecoration(labelText:label,labelStyle:TextStyle(color:fg.withValues(alpha:.65),fontSize:9),isDense:true,border:OutlineInputBorder(borderSide:BorderSide(color:border))),
           ));
         }
 
