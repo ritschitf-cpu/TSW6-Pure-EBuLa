@@ -45,22 +45,22 @@ extension TestLab on _EBuLaScreenState {
       final root = await _testUrl(host, port, '/');
       setLocal(() {
         results['Verbindung'] = root['ok'] == true
-            ? 'OK – HTTP \${root['status']} – \${root['ms']} ms'
-            : 'FEHLER – \${root['error'] ?? 'HTTP \${root['status']}'}';
+            ? 'OK – HTTP ${{root['status']} – ${{root['ms']} ms'
+            : 'FEHLER – ${{root['error'] ?? 'HTTP ${{root['status']}'}';
       });
 
       final health = await _testUrl(host, port, '/health');
       setLocal(() {
         results['Bridge /health'] = health['ok'] == true
-            ? 'OK – \${health['body']}'
-            : 'FEHLER – \${health['error'] ?? 'HTTP \${health['status']}'}';
+            ? 'OK – ${{health['body']}'
+            : 'FEHLER – ${{health['error'] ?? 'HTTP ${{health['status']}'}';
       });
 
       final state = await _testUrl(host, port, '/api/state');
       setLocal(() {
         results['EBuLa /api/state'] = state['ok'] == true
-            ? 'OK – Daten empfangen – \${state['ms']} ms'
-            : 'FEHLER – \${state['error'] ?? 'HTTP \${state['status']}'}';
+            ? 'OK – Daten empfangen – ${{state['ms']} ms'
+            : 'FEHLER – ${{state['error'] ?? 'HTTP ${{state['status']}'}';
         running = false;
       });
     }
@@ -113,7 +113,7 @@ extension TestLab on _EBuLaScreenState {
                         Padding(
                           padding: const EdgeInsets.only(bottom: 8),
                           child: Text(
-                            '\${entry.key}:\\n\${entry.value}',
+                            '${{entry.key}:\n${{entry.value}',
                             style: TextStyle(
                               color: entry.value.startsWith('OK') ? Colors.greenAccent : Colors.orangeAccent,
                               fontSize: 10,
