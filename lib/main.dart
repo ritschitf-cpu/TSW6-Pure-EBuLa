@@ -4,8 +4,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
 
 part 'ebula_editor.dart';
 
@@ -199,6 +199,17 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     });
   }
   @override void dispose(){clockTimer?.cancel();liveTimer?.cancel();super.dispose();}
+  void applyCustomTimetableState(TimetableData data,List<TimetableData> current){
+    setState(() {
+      customTimetables=current;
+      final customIds=current.map((e)=>e.id).toSet();
+      all=[...all.where((t)=>!customIds.contains(t.id)),...current];
+      train=data;
+      marker=0;
+      page=0;
+    });
+  }
+
 
   Future<void> pollBridge() async {
     final host=bridgeHost.trim();
