@@ -122,8 +122,8 @@ class EmbeddedEditorPanelState extends State<EmbeddedEditorPanel> {
 }
 
 class EmbeddedModePanel extends StatefulWidget {
-  final String mode;final DateTime clock;final void Function(String,int,int) onConfirm;
-  const EmbeddedModePanel({super.key,required this.mode,required this.clock,required this.onConfirm});
+  final String mode;final DateTime clock;final Color fg,bg,border;final void Function(String,int,int) onConfirm;
+  const EmbeddedModePanel({super.key,required this.mode,required this.clock,required this.fg,required this.bg,required this.border,required this.onConfirm});
   @override State<EmbeddedModePanel> createState()=>EmbeddedModePanelState();
 }
 class EmbeddedModePanelState extends State<EmbeddedModePanel>{
@@ -132,35 +132,36 @@ class EmbeddedModePanelState extends State<EmbeddedModePanel>{
   void confirm()=>widget.onConfirm(mode,h,m);
   @override Widget build(BuildContext context)=>ListView(padding:const EdgeInsets.all(10),children:[
     Row(mainAxisAlignment:MainAxisAlignment.center,children:[
-      IconButton(onPressed:()=>setState(()=>h=(h+23)%24),icon:const Icon(Icons.remove,color:Colors.white)),
-      Text(h.toString().padLeft(2,'0'),style:const TextStyle(color:Colors.white,fontSize:24)),
-      IconButton(onPressed:()=>setState(()=>h=(h+1)%24),icon:const Icon(Icons.add,color:Colors.white)),
+      IconButton(onPressed:()=>setState(()=>h=(h+23)%24),icon:Icon(Icons.remove,color:widget.fg)),
+      Text(h.toString().padLeft(2,'0'),style:TextStyle(color:widget.fg,fontSize:24)),
+      IconButton(onPressed:()=>setState(()=>h=(h+1)%24),icon:Icon(Icons.add,color:widget.fg)),
       const Text(':',style:TextStyle(color:Colors.white,fontSize:24)),
       IconButton(onPressed:()=>setState(()=>m=(m+59)%60),icon:const Icon(Icons.remove,color:Colors.white)),
       Text(m.toString().padLeft(2,'0'),style:const TextStyle(color:Colors.white,fontSize:24)),
       IconButton(onPressed:()=>setState(()=>m=(m+1)%60),icon:const Icon(Icons.add,color:Colors.white))
     ]),
-    const Divider(color:Colors.white24),
+    Divider(color:widget.border),
     _tile('manual','Manuell','Zeiger mit ▲ / ▼ bewegen'),
     _tile('time','Per Zeit','Zeiger folgt der Fahrplanzeit'),
     _tile('location','Per Ortung','Zeiger folgt TSW6 über die Bridge'),
     const SizedBox(height:8),
-    const Text('E übernimmt die Auswahl. C schließt.',style:TextStyle(color:Colors.white54,fontSize:9))
+    Text('E übernimmt die Auswahl. C schließt.',style:TextStyle(color:widget.fg.withValues(alpha:.62),fontSize:9))
   ]);
   Widget _tile(String v,String a,String b)=>RadioListTile<String>(
     value:v,groupValue:mode,onChanged:(x)=>setState(()=>mode=x!),
-    title:Text(a,style:const TextStyle(color:Colors.white,fontSize:11)),subtitle:Text(b,style:const TextStyle(color:Colors.white54,fontSize:9)),
+    title:Text(a,style:TextStyle(color:widget.fg,fontSize:11)),subtitle:Text(b,style:TextStyle(color:widget.fg.withValues(alpha:.62),fontSize:9)),
     contentPadding:EdgeInsets.zero);
 }
 
 class EmbeddedBridgePanel extends StatefulWidget {
-  final String host;final int port;final String status;final bool busy;
-  final Future<void> Function(String,int) onConfirm;
-  const EmbeddedBridgePanel({super.key,required this.host,required this.port,required this.status,required this.busy,required this.onConfirm});
+  final String host;final int port;final String status;final bool busy;final double? liveKm,routeDistanceM;final String routeId;
+  final Color fg,bg,border,keyGlow;
+  final Future<void> Function(String,int) onConfirm;final Future<void> Function() onRecordStart,onRecordStop,onDiagnostics;
+  const EmbeddedBridgePanel({super.key,required this.host,required this.port,required this.status,required this.busy,required this.liveKm,required this.routeId,required this.routeDistanceM,required this.fg,required this.bg,required this.border,required this.keyGlow,required this.onConfirm,required this.onRecordStart,required this.onRecordStop,required this.onDiagnostics});
   @override State<EmbeddedBridgePanel> createState()=>EmbeddedBridgePanelState();
 }
 class EmbeddedBridgePanelState extends State<EmbeddedBridgePanel>{
-  late final TextEditingController host,port;bool running=false;
+  late final TextEditingController host,port;bool running=false,recording=false;
   @override void initState(){super.initState();host=TextEditingController(text:widget.host);port=TextEditingController(text:widget.port.toString());}
   @override void dispose(){host.dispose();port.dispose();super.dispose();}
   Future<void> confirm()async{
@@ -168,18 +169,38 @@ class EmbeddedBridgePanelState extends State<EmbeddedBridgePanel>{
     setState(()=>running=true);await widget.onConfirm(host.text.trim(),p);if(mounted)setState(()=>running=false);
   }
   @override Widget build(BuildContext context)=>ListView(padding:const EdgeInsets.all(12),children:[
-    const Text('Tablet → PC → Pure EBuLa Bridge',style:TextStyle(color:Colors.white70,fontSize:10)),
+    Text('Tablet → PC → Pure EBuLa Bridge',style:TextStyle(color:widget.fg.withValues(alpha:.75),fontSize:10)),
     const SizedBox(height:8),
     _field(host,'PC-IP / Hostname'),const SizedBox(height:7),_field(port,'Port',num:true),
-    const SizedBox(height:10),Text('Aktueller Status: '+widget.status,style:TextStyle(color:widget.status.contains('Verbunden')?Colors.greenAccent:Colors.white70,fontSize:10)),
+    const SizedBox(height:10),
+    Text('Aktueller Status: '+widget.status,style:TextStyle(color:widget.status.contains('Verbunden')?Colors.green.shade700:widget.fg,fontSize:10)),
     const SizedBox(height:8),
-    ElevatedButton(onPressed:running?null:confirm,child:Text(running?'VERBINDE …':'VERBINDEN / E')),
+    Row(children:[
+      Expanded(child:ElevatedButton(onPressed:running?null:confirm,child:Text(running?'VERBINDE …':'VERBINDEN / E'))),
+      const SizedBox(width:6),
+      Expanded(child:ElevatedButton(onPressed:running?null:()async{
+        setState(()=>recording=true); await widget.onRecordStart();
+      },child:Text(recording?'AUFNAHME LÄUFT':'STRECKE AUFNEHMEN'))),
+    ]),
+    if(recording)Padding(padding:const EdgeInsets.only(top:6),child:ElevatedButton(onPressed:()async{
+      await widget.onRecordStop(); if(mounted)setState(()=>recording=false);
+    },child:const Text('AUFNAHME STOPPEN'))),
+    const SizedBox(height:8),
+    Container(padding:const EdgeInsets.all(7),decoration:BoxDecoration(color:widget.bg,border:Border.all(color:widget.border)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      Text('Live-Streckenzuordnung',style:TextStyle(color:widget.fg,fontWeight:FontWeight.bold,fontSize:10)),
+      const SizedBox(height:3),
+      Text(widget.routeId.isEmpty?'Keine Route-Datei zugeordnet':'Route: '+widget.routeId,style:TextStyle(color:widget.fg,fontSize:9)),
+      Text(widget.liveKm==null?'km: —':'km: '+widget.liveKm!.toStringAsFixed(3).replaceAll('.',','),style:TextStyle(color:widget.fg,fontSize:9)),
+      if(widget.routeDistanceM!=null)Text('Abstand zur Geometrie: '+widget.routeDistanceM!.toStringAsFixed(0)+' m',style:TextStyle(color:widget.fg.withValues(alpha:.65),fontSize:8)),
+    ])),
     const SizedBox(height:7),
-    const Text('Die IP-/Port-Einstellung ist ein EBuLa-Systemfenster und öffnet sich nicht außerhalb des Displays.',style:TextStyle(color:Colors.white38,fontSize:9))
+    OutlinedButton(onPressed:widget.onDiagnostics,child:Text('TSW-DIAGNOSE AKTUALISIEREN',style:TextStyle(color:widget.fg,fontSize:9))),
+    const SizedBox(height:7),
+    Text('Streckendaten werden getrennt vom Fahrplan als eigene Geometrie gespeichert. Die Aufzeichnung nutzt nur die TSW6-API-Daten.',style:TextStyle(color:widget.fg.withValues(alpha:.6),fontSize:8))
   ]);
   Widget _field(TextEditingController c,String label,{bool num=false})=>TextField(
-    controller:c,keyboardType:num?TextInputType.number:TextInputType.text,style:const TextStyle(color:Colors.white,fontSize:11),
-    decoration:InputDecoration(labelText:label,labelStyle:const TextStyle(color:Colors.white70,fontSize:10),
-      enabledBorder:const OutlineInputBorder(borderSide:BorderSide(color:Colors.white38)),focusedBorder:const OutlineInputBorder(borderSide:BorderSide(color:Color(0xfff0a13a),width:2)))
+    controller:c,keyboardType:num?TextInputType.number:TextInputType.text,style:TextStyle(color:widget.fg,fontSize:11),
+    decoration:InputDecoration(labelText:label,labelStyle:TextStyle(color:widget.fg.withValues(alpha:.7),fontSize:10),
+      enabledBorder:OutlineInputBorder(borderSide:BorderSide(color:widget.border)),focusedBorder:OutlineInputBorder(borderSide:BorderSide(color:widget.keyGlow,width:2)))
   );
 }
