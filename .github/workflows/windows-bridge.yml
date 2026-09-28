@@ -1,0 +1,81 @@
+name: Windows Bridge
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PyInstaller
+        run: python -m pip install --upgrade pip pyinstaller
+
+      - name: Build PureEBuLaBridge.exe
+        run: pyinstaller --noconfirm --clean --onefile --name PureEBuLaBridge bridge/pure_ebula_bridge.py
+
+      - name: Prepare PC package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/TSW6-Pure-EBuLa-Bridge | Out-Null
+          Copy-Item dist/PureEBuLaBridge.exe dist/TSW6-Pure-EBuLa-Bridge/
+          Copy-Item bridge/README.md dist/TSW6-Pure-EBuLa-Bridge/README.md
+          @'
+          @echo off
+          title Pure EBuLa Bridge
+          echo.
+          echo ========================================
+          echo       Pure EBuLa Bridge - TSW6
+          echo ========================================
+          echo.
+          echo TSW6 muss mit -HTTPAPI gestartet sein.
+          echo Die Bridge sucht CommAPIKey.txt automatisch.
+          echo Android-App und PC muessen im selben LAN/WLAN sein.
+          echo.
+          PureEBuLaBridge.exe
+          echo.
+          echo Bridge beendet. Taste druecken...
+          pause
+          '@ | Set-Content -Encoding ASCII dist/TSW6-Pure-EBuLa-Bridge/Start-PureEBuLaBridge.bat
+          @'
+          PURE EBULA BRIDGE - PC
+
+          1. TSW6 mit -HTTPAPI starten.
+          2. TSW6 einmal starten/beenden, damit CommAPIKey.txt erzeugt wird.
+          3. PureEBuLaBridge.exe auf dem TSW6-PC starten.
+          4. Windows-Firewall bei Nachfrage fuer private Netzwerke erlauben.
+          5. Die Bridge zeigt ihre LAN-Adresse und Port 8080 an.
+          6. In der Android EBuLa-App diese PC-Adresse als Bridge eintragen.
+          7. Fuer den ersten Test: Köln-Aachen-Dienst laden und in den Fuehrerstand gehen.
+
+          Die Bridge benoetigt keinen Python-Interpreter.
+          Der TSW-API-Key bleibt auf dem PC und wird NICHT an die Android-App weitergegeben.
+
+          Lokale Tests:
+            http://127.0.0.1:8080/health
+            http://127.0.0.1:8080/api/diagnostics
+          '@ | Set-Content -Encoding UTF8 dist/TSW6-Pure-EBuLa-Bridge/README-PC.txt
+
+      - name: Zip PC package
+        shell: pwsh
+        run: Compress-Archive -Path dist/TSW6-Pure-EBuLa-Bridge/* -DestinationPath dist/TSW6-Pure-EBuLa-Bridge.zip -Force
+
+      - name: Upload Windows Bridge
+        uses: actions/upload-artifact@v4
+        with:
+          name: TSW6-Pure-EBuLa-Bridge-Windows
+          path: |
+            dist/TSW6-Pure-EBuLa-Bridge.zip
+            dist/PureEBuLaBridge.exe
+          if-no-files-found: error
