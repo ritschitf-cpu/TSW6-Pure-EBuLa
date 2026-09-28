@@ -323,9 +323,8 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     else if(a=='▼'){move(1);}
     else if(a=='⯇'){pageMove(-1);}
     else if(a=='⯈'){pageMove(1);}
-    else if(a=='E'){setState(()=>markerPause=!markerPause);}
+    else if(a=='E'){if(panel=='editor'){editorPanelKey.currentState?.save();}else if(panel.isNotEmpty){setState(()=>panel='');}else{setState(()=>markerPause=!markerPause);}}
     else if(a=='C'){if(panel.isNotEmpty){setState(()=>panel='');}else{setState(()=>overlay='');}}
-    else if(a=='E'){if(panel=='editor'){editorPanelKey.currentState?.save();}else if(panel.isNotEmpty){setState(()=>panel='');}}
   }
 
   void showTrain(){
