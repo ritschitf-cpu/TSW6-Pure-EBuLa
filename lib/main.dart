@@ -12,8 +12,69 @@ class PureEBuLaApp extends StatelessWidget {
     debugShowCheckedModeBanner: false,
     title: 'Pure EBuLa',
     theme: ThemeData(useMaterial3: false, fontFamily: 'monospace'),
-    home: const EBuLaScreen(),
+    home: const SplashScreen(),
   );
+}
+
+
+
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _timer = Timer(const Duration(seconds: 4), () {
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const EBuLaScreen()),
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Center(
+        child: FadeTransition(
+          opacity: Tween<double>(begin: .28, end: 1.0).animate(
+            CurvedAnimation(parent: _pulse, curve: Curves.easeInOut),
+          ),
+          child: const Text(
+            'EBuLa',
+            style: TextStyle(
+              color: Colors.white,
+              fontFamily: 'monospace',
+              fontSize: 58,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 5,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class StopPoint {
