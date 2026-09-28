@@ -14,10 +14,11 @@ BRIDGE_PORT = 8080
 POLL_SECONDS = 0.5
 
 state = {
-    "bridge": {"name": "Pure EBuLa Bridge", "version": "0.3.0"},
+    "bridge": {"name": "Pure EBuLa Bridge", "version": "0.4.0"},
     "tsw": {
         "connected": False, "api": TSW_BASE, "game": None, "build": None,
-        "routeHint": "", "vehicleId": None, "loco": None
+        "routeHint": "", "vehicleId": None, "loco": None,
+        "currentServiceName": None, "cameraMode": None, "inCab": False
     },
     "train": {"number": None, "service": None, "route": None},
     "position": {
@@ -32,7 +33,7 @@ state = {
     "timestamp": None,
     "error": None,
     "recording": {"active": False, "samples": 0, "file": None, "started": None},
-    "routeMatch": {"routeId": None, "km": None, "distanceM": None, "point": None},
+    "routeMatch": {"routeId": None, "routeName": None, "km": None, "distanceM": None, "point": None},
 }
 lock = threading.Lock()
 api_key = None
@@ -179,6 +180,48 @@ def get_track_data():
     return safe_get("Player.Function.GetTrackData")
 
 
+def player_field(player_info, *keys):
+    if not isinstance(player_info, dict):
+        return None
+    for key in keys:
+        value = player_info.get(key)
+        if value is not None:
+            return value
+    return None
+
+
+def detect_route_id(player_info, track_data, vehicle_id, loco):
+    """
+    Route identity for automatic timetable selection.
+    For the first integration test we intentionally keep this conservative:
+    Köln-Aachen is identified from live DriverAid station/marker names and
+    the active service/vehicle context. No proprietary timetable data is used.
+    """
+    text = " ".join(str(x) for x in (player_info, track_data, vehicle_id, loco) if x is not None).lower()
+    normalized = text.replace("ö", "o").replace("ä", "a").replace("ü", "u").replace("ß", "ss")
+    signatures = (
+        "aachen", "duren", "horrem", "eschweiler", "stolberg",
+        "langerwehe", "merzenich", "sindorf", "koln ehrenfeld",
+        "koln hbf", "koln hansaring", "frechen-konigsdorf",
+    )
+    hits = sum(1 for s in signatures if s in normalized)
+    if hits >= 1:
+        return "koeln-aachen"
+    return None
+
+
+def detect_in_cab(player_info, service_name):
+    mode = str(player_field(player_info, "cameraMode", "CameraMode") or "").lower()
+    if "driving" in mode or "cab" in mode or "fuehrerstand" in mode:
+        return True
+    # Some TSW states omit cameraMode briefly while the active service is already loaded.
+    # currentServiceName + live geo is our short fallback during that transition.
+    geo = player_info.get("geoLocation") if isinstance(player_info, dict) else None
+    return bool(service_name and isinstance(geo, dict) and
+                isinstance(geo.get("latitude"), (int, float)) and
+                isinstance(geo.get("longitude"), (int, float)))
+
+
 def route_hint(player_info, vehicle_id, loco):
     parts = []
     for obj in (player_info, vehicle_id, loco):
@@ -314,20 +357,33 @@ def poll_loop():
             info = tsw_request("/info")
             meta = info.get("Meta", {}) if isinstance(info, dict) else {}
             sim_time = get_time()
-            lat, lon, player_info = get_position()
+            player_info = safe_get("DriverAid.PlayerInfo")
+            lat, lon, _ = get_position()
             speed = get_speed()
             vehicle_id = get_vehicle_id()
             loco = get_loco()
             aid = get_driver_aid()
             track = get_track_data()
+            service_name = player_field(player_info, "currentServiceName", "CurrentServiceName")
+            camera_mode = player_field(player_info, "cameraMode", "CameraMode")
+            in_cab = detect_in_cab(player_info, service_name)
+            detected_route = detect_route_id(player_info, track, vehicle_id, loco)
 
             matched = match_route(lat, lon)
+            if detected_route:
+                matched = matched or {"routeId": detected_route, "routeName": "Köln – Aachen", "km": None, "distanceM": None, "point": None}
+                if matched.get("routeId") is None:
+                    matched["routeId"] = detected_route
+                    matched["routeName"] = "Köln – Aachen"
             with lock:
                 state["tsw"]["connected"] = True
                 state["tsw"]["game"] = meta.get("GameName")
                 state["tsw"]["build"] = meta.get("GameBuildNumber")
                 state["tsw"]["vehicleId"] = vehicle_id
                 state["tsw"]["loco"] = loco
+                state["tsw"]["currentServiceName"] = service_name
+                state["tsw"]["cameraMode"] = camera_mode
+                state["tsw"]["inCab"] = in_cab
                 state["tsw"]["routeHint"] = route_hint(player_info, vehicle_id, loco)
                 state["simTime"] = sim_time
                 state["position"]["latitude"] = lat
@@ -416,6 +472,10 @@ class Handler(BaseHTTPRequestHandler):
                 "speed": payload["speed"],
                 "vehicleId": payload["tsw"]["vehicleId"],
                 "loco": payload["tsw"]["loco"],
+                "currentServiceName": payload["tsw"]["currentServiceName"],
+                "cameraMode": payload["tsw"]["cameraMode"],
+                "inCab": payload["tsw"]["inCab"],
+                "routeMatch": payload["routeMatch"],
                 "routeHint": payload["tsw"]["routeHint"],
                 "trackDataPresent": payload["trackData"] is not None,
                 "driverAidPresent": payload["driverAid"] is not None,
