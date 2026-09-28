@@ -147,6 +147,11 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   double? liveRouteDistanceM;
   String? liveSimTime;
   String liveRouteHint='';
+  String liveServiceName='';
+  String liveCameraMode='';
+  bool liveInCab=false;
+  String lastAutoRouteKey='';
+  String autoSelectionStatus='';
   String bridgeHost='192.168.178.100';
   int bridgePort=8080;
   String bridgeStatus='Nicht verbunden';
@@ -250,10 +255,31 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
         bridgeRecordSamples=(rec['samples'] as num?)?.toInt() ?? bridgeRecordSamples;
         liveSimTime=sim.isEmpty || sim=='null' ? null : sim;
         liveRouteHint=(tsw['routeHint'] ?? '').toString();
+        liveServiceName=(tsw['currentServiceName'] ?? '').toString();
+        liveCameraMode=(tsw['cameraMode'] ?? '').toString();
+        liveInCab=tsw['inCab']==true;
         bridgeStatus=(tsw['connected']==true) ? 'Verbunden · TSW live' : 'Bridge verbunden · TSW wartet';
         if(liveSimTime!=null) {
           final dt=DateTime.tryParse(liveSimTime!.replaceFirst('Z','+00:00'))?.toLocal();
           if(dt!=null) clock=DateTime(clock.year,clock.month,clock.day,dt.hour,dt.minute,dt.second);
+        }
+        final detectedRoute=liveRouteId.trim().toLowerCase();
+        if (liveInCab && detectedRoute=='koeln-aachen' && lastAutoRouteKey!='koeln-aachen') {
+          final candidate=all.where((t)=>t.id.startsWith('koeln-aachen')).toList();
+          if(candidate.isNotEmpty) {
+            train=candidate.first.withServiceType(candidate.first.serviceTypes.first);
+            marker=0;
+            page=0;
+            opposite=false;
+            panel='';
+            overlay='';
+            displayMode='location';
+            autoSelectionStatus='Automatisch: Köln – Aachen';
+            lastAutoRouteKey='koeln-aachen';
+          }
+        }
+        if (liveInCab && detectedRoute!='koeln-aachen' && detectedRoute.isNotEmpty) {
+          lastAutoRouteKey=detectedRoute;
         }
         if(displayMode=='location' && train!=null) {
           if(liveKm!=null) {
@@ -638,7 +664,7 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   ));
 
   Widget status()=>Container(height:25,color:night?const Color(0xff172332):(dark?const Color(0xff252a2d):const Color(0xffefede5)),padding:const EdgeInsets.symmetric(horizontal:5),child:Row(children:[
-    Text(displayMode=='location'?'Ortung':displayMode=='time'?'Zeit':'manuell',style:TextStyle(color:fg,fontSize:10)),
+    Text(autoSelectionStatus.isNotEmpty?autoSelectionStatus:(displayMode=='location'?'Ortung':displayMode=='time'?'Zeit':'manuell'),style:TextStyle(color:fg,fontSize:10)),
     const Spacer(),
     Text(opposite?'RW / l':'RW / r',style:TextStyle(color:fg,fontSize:10)),
     const SizedBox(width:16),Text('600 A',style:TextStyle(color:fg,fontSize:10)),
