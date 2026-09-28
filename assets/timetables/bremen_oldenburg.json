@@ -1,0 +1,19 @@
+{
+  "id":"bremen-oldenburg-demo",
+  "trainNumber":"RE 1",
+  "service":"Bremen Hbf – Oldenburg (Oldb) Hbf",
+  "validity":"Demo",
+  "date":"28.09.2026",
+  "vehicle":"BR 146 + Doppelstock",
+  "maxSpeed":160,
+  "lengthMeters":160,
+  "massTons":420,
+  "stops":[
+    {"name":"Bremen Hbf","km":0.0,"arrival":"08:04","departure":"08:06","speed":160},
+    {"name":"Bremen Neustadt","km":4.2,"arrival":"08:10","departure":"08:10","speed":160},
+    {"name":"Delmenhorst","km":11.6,"arrival":"08:18","departure":"08:19","speed":160},
+    {"name":"Hude","km":24.7,"arrival":"08:29","departure":"08:30","speed":160},
+    {"name":"Wüsting","km":33.1,"speed":140,"note":"Bf Wüsting"},
+    {"name":"Oldenburg (Oldb) Hbf","km":44.1,"arrival":"08:45","departure":"08:47","speed":120}
+  ]
+}
