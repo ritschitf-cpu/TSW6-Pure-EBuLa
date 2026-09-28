@@ -139,6 +139,8 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   final bridgePanelKey=GlobalKey<EmbeddedBridgePanelState>();
   List<TimetableData> customTimetables=[];
   Map<String,dynamic> liveState={};
+  bool bridgeRecording=false;
+  int bridgeRecordSamples=0;
   Timer? liveTimer;
   double? liveLatitude, liveLongitude, liveKm;
   String liveRouteId = "";
@@ -243,6 +245,9 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
         liveKm=(rm['km'] as num?)?.toDouble();
         liveRouteId=(rm['routeId'] ?? '').toString();
         liveRouteDistanceM=(rm['distanceM'] as num?)?.toDouble();
+        final rec=(data['recording'] as Map?)?.cast<String,dynamic>() ?? {};
+        bridgeRecording=rec['active']==true;
+        bridgeRecordSamples=(rec['samples'] as num?)?.toInt() ?? bridgeRecordSamples;
         liveSimTime=sim.isEmpty || sim=='null' ? null : sim;
         liveRouteHint=(tsw['routeHint'] ?? '').toString();
         bridgeStatus=(tsw['connected']==true) ? 'Verbunden · TSW live' : 'Bridge verbunden · TSW wartet';
@@ -726,12 +731,12 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     if(panel=='system')return _systemPanel();
     if(panel=='train')return _trainPanel();
     if(panel=='mode')return EmbeddedModePanel(
-      key:modePanelKey,mode:displayMode,clock:clock,
+      key:modePanelKey,mode:displayMode,clock:clock,fg:fg,bg:bg,border:border,
       onConfirm:(m,h,mi){setState(() { displayMode=m; clock=DateTime(clock.year,clock.month,clock.day,h,mi,clock.second); panel=''; });},
     );
     if(panel=='bridge')return EmbeddedBridgePanel(
       key:bridgePanelKey,host:bridgeHost,port:bridgePort,status:bridgeStatus,busy:bridgeBusy,
-      liveKm:liveKm,routeId:liveRouteId,routeDistanceM:liveRouteDistanceM,
+      liveKm:liveKm,routeId:liveRouteId,routeDistanceM:liveRouteDistanceM,fg:fg,bg:bg,border:border,keyGlow:keyGlow,
       onConfirm:(h,p)async{setState(() { bridgeHost=h; bridgePort=p; }); await connectBridge();},
       onRecordStart:()=>bridgePost('/api/record/start'),
       onRecordStop:()=>bridgePost('/api/record/stop'),
