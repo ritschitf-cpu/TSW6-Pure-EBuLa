@@ -18,7 +18,8 @@ jobs:
         run: flutter create . --platforms=android --project-name tsw6_pure_ebula --org de.pureebula
       - name: Restore analyzer configuration
         run: cp ci/analysis_options.yaml analysis_options.yaml
-
+      - name: Add Test Lab and LAN permission
+        run: python3 ci/add_test_lab.py
       - name: Dependencies
         run: flutter pub get
       - name: Analyze
