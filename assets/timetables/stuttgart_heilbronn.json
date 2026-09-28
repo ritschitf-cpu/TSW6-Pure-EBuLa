@@ -1,20 +1,61 @@
 {
-  "id":"stuttgart-heilbronn-demo",
-  "trainNumber":"RE 8",
-  "service":"Stuttgart Hbf – Heilbronn Hbf",
-  "validity":"Demo",
-  "date":"28.09.2026",
-  "vehicle":"BR 193 + Doppelstock",
-  "maxSpeed":160,
-  "lengthMeters":190,
-  "massTons":450,
-  "stops":[
-    {"name":"Stuttgart Hbf","km":0.0,"arrival":"09:02","departure":"09:05","speed":120},
-    {"name":"Stuttgart-Zuffenhausen","km":6.5,"arrival":"09:12","departure":"09:13","speed":120},
-    {"name":"Ludwigsburg","km":15.8,"arrival":"09:20","departure":"09:21","speed":160},
-    {"name":"Bietigheim-Bissingen","km":27.1,"arrival":"09:30","departure":"09:31","speed":160},
-    {"name":"Vaihingen (Enz)","km":39.8,"speed":160,"note":"Sbk / freie Strecke"},
-    {"name":"Lauffen (Neckar)","km":67.2,"arrival":"09:52","departure":"09:53","speed":120},
-    {"name":"Heilbronn Hbf","km":79.5,"arrival":"10:02","departure":"10:04","speed":120}
+  "id": "stuttgart-heilbronn-demo",
+  "trainNumber": "RE 8",
+  "service": "TSW6 · Frankenbahn · Stuttgart Hbf – Heilbronn Hbf",
+  "validity": "TSW-Strecke · Fahrplan 2018",
+  "date": "28.09.2026",
+  "vehicle": "BR 147 + Doppelstock",
+  "maxSpeed": 160,
+  "lengthMeters": 190,
+  "massTons": 450,
+  "stops": [
+    {
+      "name": "Stuttgart Hbf",
+      "km": 0,
+      "arrival": "09:02",
+      "departure": "09:05",
+      "speed": 120
+    },
+    {
+      "name": "Stuttgart-Zuffenhausen",
+      "km": 6.5,
+      "arrival": "09:12",
+      "departure": "09:13",
+      "speed": 120
+    },
+    {
+      "name": "Ludwigsburg",
+      "km": 15.8,
+      "arrival": "09:20",
+      "departure": "09:21",
+      "speed": 160
+    },
+    {
+      "name": "Bietigheim-Bissingen",
+      "km": 27.1,
+      "arrival": "09:30",
+      "departure": "09:31",
+      "speed": 160
+    },
+    {
+      "name": "Besigheim",
+      "km": 35.5,
+      "speed": 160,
+      "note": "freie Strecke"
+    },
+    {
+      "name": "Lauffen (Neckar)",
+      "km": 67.2,
+      "arrival": "09:52",
+      "departure": "09:53",
+      "speed": 120
+    },
+    {
+      "name": "Heilbronn Hbf",
+      "km": 79.5,
+      "arrival": "10:02",
+      "departure": "10:04",
+      "speed": 120
+    }
   ]
 }
