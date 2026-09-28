@@ -650,6 +650,129 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   );
 
 
+
+  Widget ebulaPanel(){
+    final titles=<String,String>{
+      'system':'System / Fahrplan','train':'Zugauswahl','mode':'Zeit / Anzeigepunkt',
+      'bridge':'St – TSW6 Bridge','keylight':'i – Tastenbeleuchtung',
+      'route':'FSD – Strecken-/Fahrplandaten','editor':'aus – Fahrplan programmieren'
+    };
+    return Container(
+      color:Colors.black54,
+      padding:const EdgeInsets.all(14),
+      child:Container(
+        decoration:BoxDecoration(color:bg,border:Border.all(color:border,width:2),boxShadow:const[BoxShadow(color:Colors.black54,blurRadius:10)]),
+        child:Column(children:[
+          Container(height:38,color:bar,padding:const EdgeInsets.symmetric(horizontal:10),child:Row(children:[
+            Text(titles[panel]??'EBuLa',style:TextStyle(color:fg,fontWeight:FontWeight.bold,fontSize:14)),
+            const Spacer(),Text('E = übernehmen   C = zurück',style:TextStyle(color:fg,fontSize:9))
+          ])),
+          Expanded(child:_panelBody()),
+          Container(height:35,color:bar,padding:const EdgeInsets.symmetric(horizontal:8),child:Row(children:[
+            Text('EBuLa-Systemfenster',style:TextStyle(color:fg,fontSize:9)),
+            const Spacer(),
+            TextButton(onPressed:()=>action('C'),child:Text('C',style:TextStyle(color:fg,fontWeight:FontWeight.bold))),
+            TextButton(onPressed:()=>action('E'),child:Text('E',style:TextStyle(color:keyGlow,fontWeight:FontWeight.bold)))
+          ]))
+        ])
+      )
+    );
+  }
+
+  Widget _panelBody(){
+    if(panel=='system')return _systemPanel();
+    if(panel=='train')return _trainPanel();
+    if(panel=='mode')return EmbeddedModePanel(
+      mode:displayMode,clock:clock,
+      onConfirm:(m,h,mi)=>setState(()=>{displayMode=m,clock=DateTime(clock.year,clock.month,clock.day,h,mi,clock.second),panel=''}),
+    );
+    if(panel=='bridge')return EmbeddedBridgePanel(
+      host:bridgeHost,port:bridgePort,status:bridgeStatus,busy:bridgeBusy,
+      onConfirm:(h,p)async{setState(()=>{bridgeHost=h;bridgePort=p});await connectBridge();if(mounted)setState(()=>panel='');},
+    );
+    if(panel=='keylight')return _keylightPanel();
+    if(panel=='route')return _routePanel();
+    if(panel=='editor')return EmbeddedEditorPanel(
+      key:editorPanelKey,existing:train!=null&&train!.id.startsWith('custom-')?train:null,
+      fg:fg,bg:bg,bar:bar,border:border,keyGlow:keyGlow,
+      onSaved:(data)=>saveCustomFromEditor(data),
+    );
+    return const SizedBox.shrink();
+  }
+
+  Widget _systemPanel()=>ListView(padding:const EdgeInsets.all(10),children:[
+    _systemItem('Fahrplan programmieren','Eigene Buchfahrplan-/Streckendaten im EBuLa-Display eingeben',()=>setState(()=>panel='editor')),
+    _systemItem('Fahrplan auswählen','Vorhandene Fahrpläne laden',()=>setState(()=>panel='train')),
+    if(train!=null&&train!.id.startsWith('custom-'))_systemItem('Aktuellen Fahrplan bearbeiten','Gespeicherten eigenen Fahrplan ändern',()=>setState(()=>panel='editor')),
+    _systemItem('Anzeigepunkt','Ortung / Zeit / Manuell',()=>setState(()=>panel='mode')),
+    _systemItem('TSW6 Bridge / IP','PC-Adresse und Port einstellen',()=>setState(()=>panel='bridge')),
+    _systemItem('Tastenbeleuchtung','Aus / Orange / Gelb / Automatisch',()=>setState(()=>panel='keylight')),
+    _systemItem('Fenster schließen','Zurück zur EBuLa-Hauptanzeige',()=>setState(()=>panel='')),
+  ]);
+  Widget _systemItem(String a,String b,VoidCallback f)=>Container(
+    margin:const EdgeInsets.only(bottom:6),
+    child:InkWell(onTap:f,child:Container(
+      padding:const EdgeInsets.all(10),
+      decoration:BoxDecoration(color:dark?const Color(0xff171a1c):const Color(0xfff4f4f0),border:Border.all(color:border)),
+      child:Row(children:[
+        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+          Text(a,style:TextStyle(color:fg,fontWeight:FontWeight.bold,fontSize:12)),
+          const SizedBox(height:2),Text(b,style:TextStyle(color:fg.withValues(alpha:.65),fontSize:9))
+        ])),
+        Text('E',style:TextStyle(color:keyGlow,fontWeight:FontWeight.bold))
+      ])
+    ))
+  );
+
+  Widget _trainPanel()=>ListView(padding:const EdgeInsets.all(8),children:[
+    for(final t in all)
+      for(final type in t.serviceTypes)
+        InkWell(onTap:()=>setState(()=>{train=t.withServiceType(type),marker=0,page=0,panel=''}),child:Container(
+          margin:const EdgeInsets.only(bottom:5),padding:const EdgeInsets.all(9),
+          decoration:BoxDecoration(color:train?.id==t.id&&train?.serviceType==type?bar:bg,border:Border.all(color:border)),
+          child:Row(children:[
+            SizedBox(width:92,child:Text(t.trainNumber,style:TextStyle(color:fg,fontWeight:FontWeight.bold,fontSize:15))),
+            Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+              Text(type+' · '+t.service,style:TextStyle(color:fg,fontWeight:FontWeight.bold,fontSize:11)),
+              Text(t.vehicle+' · Vmax '+t.maxSpeed.toString()+' · '+t.validity,style:TextStyle(color:fg.withValues(alpha:.65),fontSize:9))
+            ])),
+            if(train?.id==t.id&&train?.serviceType==type)Icon(Icons.check,color:fg,size:18)
+          ])
+        )
+  ]);
+
+  Widget _keylightPanel()=>ListView(padding:const EdgeInsets.all(10),children:[
+    for(final e in const[['off','Aus'],['orange','Orange'],['yellow','Gelb'],['auto','Automatisch']])
+      RadioListTile<String>(value:e[0],groupValue:keyLightMode,title:Text(e[1],style:TextStyle(color:fg,fontSize:11)),
+        onChanged:(v)=>setState(()=>keyLightMode=v!),contentPadding:EdgeInsets.zero)
+  ]);
+
+  Widget _routePanel()=>ListView(padding:const EdgeInsets.all(10),children:[
+    Text('Fahrplan- und Streckendaten',style:TextStyle(color:fg,fontWeight:FontWeight.bold,fontSize:12)),
+    const SizedBox(height:6),
+    Text('Zug: '+(train?.trainNumber??'---')+'   Typ: '+(train?.serviceType??'---'),style:TextStyle(color:fg,fontSize:10)),
+    Text('Strecke: '+(train?.service??'---'),style:TextStyle(color:fg,fontSize:10)),
+    Text('Tfz: '+(train?.vehicle??'---')+'   Vmax: '+(train?.maxSpeed.toString()??'0')+' km/h',style:TextStyle(color:fg,fontSize:10)),
+    const Divider(),
+    if(train==null)Text('Kein Fahrplan geladen.',style:TextStyle(color:fg.withValues(alpha:.65),fontSize:10)),
+    for(final p in train?.stops??const<StopPoint>[])
+      Padding(padding:const EdgeInsets.symmetric(vertical:2),child:Text(
+        p.km.toStringAsFixed(1).padLeft(6)+'  '+(p.note??p.name).padRight(28)+'  '+(p.arrival??'--:--')+'  '+(p.departure??'--:--'),
+        style:TextStyle(color:fg,fontSize:9)))
+  ]);
+
+  Future<void> saveCustomFromEditor(TimetableData data) async{
+    final prefs=await SharedPreferences.getInstance();
+    final current=<TimetableData>[...customTimetables.where((e)=>e.id!=data.id),data];
+    await prefs.setStringList('custom_timetables',current.map((t)=>jsonEncode({
+      'id':t.id,'trainNumber':t.trainNumber,'service':t.service,'serviceType':t.serviceType,'serviceTypes':t.serviceTypes,
+      'validity':t.validity,'date':t.date,'vehicle':t.vehicle,'maxSpeed':t.maxSpeed,'lengthMeters':t.lengthMeters,
+      'massTons':t.massTons,'brakeHundredths':t.brakeHundredths,'pzbType':t.pzbType,'notes':t.notes,
+      'stops':t.stops.map((p)=>p.toJson()).toList()
+    })).toList());
+    applyCustomTimetableState(data,current);
+  }
+
 }
 
 class MarkerDiamondPainter extends CustomPainter {
