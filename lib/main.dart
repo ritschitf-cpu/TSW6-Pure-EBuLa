@@ -309,7 +309,7 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     if(a=='aus'){setState(()=>panel='system');}
     else if(a=='Zug'){setState(()=>panel='train');}
     else if(a=='FSD'){setState(()=>panel='route');}
-    else if(a=='GW'){setState(() { if(!orientedStops.isEmpty) marker=orientedStops.length-1-marker; opposite=!opposite; page=0; });}
+    else if(a=='GW'){setState(() { if(orientedStops.isNotEmpty) marker=orientedStops.length-1-marker; opposite=!opposite; page=0; });}
     else if(a=='Zeit'){setState(()=>panel='mode');}
     else if(a=='S'){setState(() { paused=!paused; _lastRealTick=DateTime.now(); });}
     else if(a=='I'){setState(()=>panel='keylight');}
