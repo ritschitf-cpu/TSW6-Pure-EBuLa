@@ -140,7 +140,9 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   List<TimetableData> customTimetables=[];
   Map<String,dynamic> liveState={};
   Timer? liveTimer;
-  double? liveLatitude, liveLongitude;
+  double? liveLatitude, liveLongitude, liveKm;
+  String liveRouteId = "";
+  double? liveRouteDistanceM;
   String? liveSimTime;
   String liveRouteHint='';
   String bridgeHost='192.168.178.100';
@@ -237,6 +239,10 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
         liveState=data;
         liveLatitude=lat;
         liveLongitude=lon;
+        final rm=(data['routeMatch'] as Map?)?.cast<String,dynamic>() ?? {};
+        liveKm=(rm['km'] as num?)?.toDouble();
+        liveRouteId=(rm['routeId'] ?? '').toString();
+        liveRouteDistanceM=(rm['distanceM'] as num?)?.toDouble();
         liveSimTime=sim.isEmpty || sim=='null' ? null : sim;
         liveRouteHint=(tsw['routeHint'] ?? '').toString();
         bridgeStatus=(tsw['connected']==true) ? 'Verbunden · TSW live' : 'Bridge verbunden · TSW wartet';
@@ -244,9 +250,14 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
           final dt=DateTime.tryParse(liveSimTime!.replaceFirst('Z','+00:00'))?.toLocal();
           if(dt!=null) clock=DateTime(clock.year,clock.month,clock.day,dt.hour,dt.minute,dt.second);
         }
-        if(displayMode=='location' && liveLatitude!=null && liveLongitude!=null && train!=null) {
-          final idx=nearestGeoIndex(train!.stops,liveLatitude!,liveLongitude!);
-          if(idx!=null) marker=idx;
+        if(displayMode=='location' && train!=null) {
+          if(liveKm!=null) {
+            final idx=nearestKmIndex(orientedStops,liveKm!);
+            if(idx!=null) marker=idx;
+          } else if(liveLatitude!=null && liveLongitude!=null) {
+            final idx=nearestGeoIndex(orientedStops,liveLatitude!,liveLongitude!);
+            if(idx!=null) marker=idx;
+          }
         } else if(displayMode=='time' && liveSimTime!=null && train!=null) {
           marker=markerForTime(liveSimTime!);
         }
@@ -266,6 +277,16 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
       final sec=(int.tryParse(p[0])??0)*3600+(int.tryParse(p[1])??0)*60;
       final diff=(sec-target).abs();
       if(diff<bestDiff){bestDiff=diff;best=i;}
+    }
+    return best;
+  }
+
+  int? nearestKmIndex(List<StopPoint> stops,double km){
+    if(stops.isEmpty) return null;
+    int best=0; double bestD=double.infinity;
+    for(var i=0;i<stops.length;i++){
+      final d=(stops[i].km-km).abs();
+      if(d<bestD){bestD=d;best=i;}
     }
     return best;
   }
@@ -379,6 +400,18 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
         ]),
       ),
     ));
+  }
+
+  Future<void> bridgePost(String path) async {
+    try {
+      final client=HttpClient()..connectionTimeout=const Duration(seconds:2);
+      final req=await client.post(bridgeHost.trim(),bridgePort,path);
+      req.headers.set(HttpHeaders.acceptHeader,'application/json');
+      final res=await req.close().timeout(const Duration(seconds:3));
+      await res.drain();
+      client.close(force:true);
+      await pollBridge();
+    } catch (_) {}
   }
 
   Future<void> connectBridge() async {
@@ -660,6 +693,8 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
 
 
   Widget ebulaPanel(){
+    final panelBg = night ? const Color(0xff111b26) : (dark ? const Color(0xff1b1f20) : const Color(0xffd8dbdc));
+    final panelFg = night ? const Color(0xffd8e7ff) : (dark ? Colors.white : const Color(0xff111111));
     final titles=<String,String>{
       'system':'System / Fahrplan','train':'Zugauswahl','mode':'Zeit / Anzeigepunkt',
       'bridge':'St – TSW6 Bridge','keylight':'i – Tastenbeleuchtung',
@@ -669,17 +704,17 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
       color:Colors.black54,
       padding:const EdgeInsets.all(14),
       child:Container(
-        decoration:BoxDecoration(color:bg,border:Border.all(color:border,width:2),boxShadow:const[BoxShadow(color:Colors.black54,blurRadius:10)]),
+        decoration:BoxDecoration(color:panelBg,border:Border.all(color:border,width:2),boxShadow:const[BoxShadow(color:Colors.black54,blurRadius:10)]),
         child:Column(children:[
           Container(height:38,color:bar,padding:const EdgeInsets.symmetric(horizontal:10),child:Row(children:[
-            Text(titles[panel]??'EBuLa',style:TextStyle(color:fg,fontWeight:FontWeight.bold,fontSize:14)),
-            const Spacer(),Text('E = übernehmen   C = zurück',style:TextStyle(color:fg,fontSize:9))
+            Text(titles[panel]??'EBuLa',style:TextStyle(color:panelFg,fontWeight:FontWeight.bold,fontSize:14)),
+            const Spacer(),Text('E = übernehmen   C = zurück',style:TextStyle(color:panelFg,fontSize:9))
           ])),
           Expanded(child:_panelBody()),
           Container(height:35,color:bar,padding:const EdgeInsets.symmetric(horizontal:8),child:Row(children:[
-            Text('EBuLa-Systemfenster',style:TextStyle(color:fg,fontSize:9)),
+            Text('EBuLa-Systemfenster',style:TextStyle(color:panelFg,fontSize:9)),
             const Spacer(),
-            TextButton(onPressed:()=>action('C'),child:Text('C',style:TextStyle(color:fg,fontWeight:FontWeight.bold))),
+            TextButton(onPressed:()=>action('C'),child:Text('C',style:TextStyle(color:panelFg,fontWeight:FontWeight.bold))),
             TextButton(onPressed:()=>action('E'),child:Text('E',style:TextStyle(color:keyGlow,fontWeight:FontWeight.bold)))
           ]))
         ])
@@ -696,7 +731,11 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     );
     if(panel=='bridge')return EmbeddedBridgePanel(
       key:bridgePanelKey,host:bridgeHost,port:bridgePort,status:bridgeStatus,busy:bridgeBusy,
-      onConfirm:(h,p)async{setState(() { bridgeHost=h; bridgePort=p; }); await connectBridge(); if(mounted)setState(()=>panel='');},
+      liveKm:liveKm,routeId:liveRouteId,routeDistanceM:liveRouteDistanceM,
+      onConfirm:(h,p)async{setState(() { bridgeHost=h; bridgePort=p; }); await connectBridge();},
+      onRecordStart:()=>bridgePost('/api/record/start'),
+      onRecordStop:()=>bridgePost('/api/record/stop'),
+      onDiagnostics:()=>pollBridge(),
     );
     if(panel=='keylight')return _keylightPanel();
     if(panel=='route')return _routePanel();
