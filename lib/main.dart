@@ -60,18 +60,21 @@ class StopPoint {
 
 class TimetableData {
   final String id, trainNumber, service, serviceType, validity, date, vehicle;
+  final List<String> serviceTypes;
   final int maxSpeed, lengthMeters, massTons;
   final List<StopPoint> stops;
   const TimetableData({
     required this.id, required this.trainNumber, required this.service, required this.serviceType,
-    required this.validity, required this.date, required this.vehicle,
+    required this.validity, required this.date, required this.vehicle, required this.serviceTypes,
     required this.maxSpeed, required this.lengthMeters, required this.massTons,
     required this.stops,
   });
+  TimetableData withServiceType(String type)=>TimetableData(id:id,trainNumber:trainNumber,service:service,serviceType:type,validity:validity,date:date,vehicle:vehicle,maxSpeed:maxSpeed,lengthMeters:lengthMeters,massTons:massTons,stops:stops,serviceTypes:serviceTypes);
   factory TimetableData.fromJson(Map<String,dynamic> j) => TimetableData(
     id: j['id'] as String, trainNumber: j['trainNumber'] as String,
     service: j['service'] as String,
     serviceType: (j['serviceType'] as String?) ?? ((j['trainNumber'] as String).startsWith('ICE') ? 'ICE' : ((j['trainNumber'] as String).startsWith('IC') ? 'IC' : 'S-Bahn')),
+    serviceTypes: (j['serviceTypes'] as List?)?.map((e)=>e.toString()).toList() ?? <String>[(j['serviceType'] as String?) ?? ((j['trainNumber'] as String).startsWith('ICE') ? 'ICE' : ((j['trainNumber'] as String).startsWith('IC') ? 'IC' : 'S-Bahn'))],
     validity: j['validity'] as String,
     date: j['date'] as String, vehicle: j['vehicle'] as String,
     maxSpeed: (j['maxSpeed'] as num).toInt(),
@@ -187,30 +190,32 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
             const Text('EBuLa – Zugauswahl',style:TextStyle(color:Colors.white,fontWeight:FontWeight.bold,fontSize:17)),
             const Spacer(),Text('E = übernehmen   C = abbrechen',style:TextStyle(color:Colors.white70,fontSize:11)),
           ])),
-          Expanded(child:ListView.builder(
-            padding:const EdgeInsets.all(8),itemCount:all.length,itemBuilder:(_,i){
-              final t=all[i], selected=train?.id==t.id;
-              return InkWell(
-                onTap:(){setState(() { train=t; resetPosition(); overlay=''; });Navigator.pop(context);},
-                child:Container(
-                  margin:const EdgeInsets.only(bottom:6),
-                  padding:const EdgeInsets.symmetric(horizontal:10,vertical:9),
-                  decoration:BoxDecoration(
-                    color:selected?const Color(0xff53616a):const Color(0xff24282a),
-                    border:Border.all(color:selected?Colors.white:const Color(0xff62696d)),
+          Expanded(child:ListView(
+            padding:const EdgeInsets.all(8),
+            children:[
+              for(final t in all)
+                for(final type in t.serviceTypes)
+                  InkWell(
+                    onTap:(){setState(() { train=t.withServiceType(type); resetPosition(); overlay=''; });Navigator.pop(context);},
+                    child:Container(
+                      margin:const EdgeInsets.only(bottom:6),
+                      padding:const EdgeInsets.symmetric(horizontal:10,vertical:9),
+                      decoration:BoxDecoration(
+                        color:(train?.id==t.id && train?.serviceType==type)?const Color(0xff53616a):const Color(0xff24282a),
+                        border:Border.all(color:(train?.id==t.id && train?.serviceType==type)?Colors.white:const Color(0xff62696d)),
+                      ),
+                      child:Row(children:[
+                        SizedBox(width:92,child:Text(t.trainNumber,style:const TextStyle(color:Colors.white,fontWeight:FontWeight.bold,fontSize:16))),
+                        Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                          Text(type+'  ·  '+t.service,style:const TextStyle(color:Colors.white,fontWeight:FontWeight.bold)),
+                          Text(t.vehicle+'   Vmax '+t.maxSpeed.toString()+' km/h   '+t.validity,style:const TextStyle(color:Colors.white70,fontSize:10)),
+                        ])),
+                        if(train?.id==t.id && train?.serviceType==type) const Icon(Icons.check,color:Colors.white),
+                      ]),
+                    ),
                   ),
-                  child:Row(children:[
-                    SizedBox(width:92,child:Text(t.trainNumber,style:const TextStyle(color:Colors.white,fontWeight:FontWeight.bold,fontSize:16))),
-                    Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-                      Text(t.serviceType+'  ·  '+t.service,style:const TextStyle(color:Colors.white,fontWeight:FontWeight.bold)),
-                      Text(t.vehicle+'   Vmax '+t.maxSpeed.toString()+' km/h   '+t.validity,style:const TextStyle(color:Colors.white70,fontSize:10)),
-                    ])),
-                    if(selected) const Icon(Icons.check,color:Colors.white),
-                  ]),
-                ),
-              );
-            },
-          )),
+            ],
+          ))
           Container(height:34,color:const Color(0xff25292b),padding:const EdgeInsets.symmetric(horizontal:10),child:const Align(
             alignment:Alignment.centerLeft,child:Text('Demo-/Beispieldaten – eigene Testfahrpläne',style:TextStyle(color:Colors.white60,fontSize:10)),
           )),
