@@ -132,7 +132,9 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   bool paused=false, night=false, dark=false, fullscreen=false, opposite=false, markerPause=false, keyLights=false;
   String keyLightMode='orange';
   String overlay='';
+  String panel='';
   String displayMode='time';
+  final editorPanelKey=GlobalKey<EmbeddedEditorPanelState>();
   List<TimetableData> customTimetables=[];
   Map<String,dynamic> liveState={};
   Timer? liveTimer;
@@ -300,14 +302,15 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   void adjust(int s)=>setState(()=>clock=clock.add(Duration(seconds:s)));
 
   void action(String a){
-    if(a=='G'){setState(()=>overlay=''); return;}
-    if(a=='Zug'){showTrain();}
-    else if(a=='FSD'){setState(()=>overlay=overlay=='FSD'?'':'FSD');}
+    if(a=='G'){setState(()=>{overlay='',panel=''}); return;}
+    if(a=='aus'){setState(()=>panel='system');}
+    else if(a=='Zug'){setState(()=>panel='train');}
+    else if(a=='FSD'){setState(()=>panel='route');}
     else if(a=='GW'){setState(()=>opposite=!opposite);}
-    else if(a=='Zeit'){showTime();}
-    else if(a=='S'){ if(train==null || train!.stops.isEmpty){showEditor();} else {setState(() { paused=!paused; _lastRealTick=DateTime.now(); });} }
-    else if(a=='I'){showKeyLightSettings();}
-    else if(a=='St'){showBridge();}
+    else if(a=='Zeit'){setState(()=>panel='mode');}
+    else if(a=='S'){setState(() { paused=!paused; _lastRealTick=DateTime.now(); });}
+    else if(a=='I'){setState(()=>panel='keylight');}
+    else if(a=='St'){setState(()=>panel='bridge');}
     else if(a=='-5s'){adjust(-5);}
     else if(a=='+5s'){adjust(5);}
     else if(a=='Tag/Nacht'){setState(()=>night=!night);}
@@ -321,7 +324,8 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     else if(a=='⯇'){pageMove(-1);}
     else if(a=='⯈'){pageMove(1);}
     else if(a=='E'){setState(()=>markerPause=!markerPause);}
-    else if(a=='C'){setState(()=>overlay='');}
+    else if(a=='C'){if(panel.isNotEmpty){setState(()=>panel='');}else{setState(()=>overlay='');}}
+    else if(a=='E'){if(panel=='editor'){editorPanelKey.currentState?.save();}else if(panel.isNotEmpty){setState(()=>panel='');}}
   }
 
   void showTrain(){
@@ -538,6 +542,7 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
         child:Column(children:[header(),routeBar(),table(list),status()]),
       ),
       if(overlay=='FSD') fsdOverlay(),
+      if(panel.isNotEmpty) Positioned.fill(child:ebulaPanel()),
     ]);
   }
 
