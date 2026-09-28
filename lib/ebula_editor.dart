@@ -1,4 +1,4 @@
-// ignore_for_file: use_build_context_synchronously
+// ignore_for_file: use_build_context_synchronously, library_private_types_in_public_api
 part of 'main.dart';
 
 class _EditorRow {
@@ -46,7 +46,7 @@ extension EBuLaEditor on _EBuLaScreenState {
             controller:c,
             style:TextStyle(color:fg,fontSize:11),
             decoration:InputDecoration(
-              labelText:label,labelStyle:TextStyle(color:fg.withOpacity(.65),fontSize:10),
+              labelText:label,labelStyle:TextStyle(color:fg.withValues(alpha:.65),fontSize:10),
               enabledBorder:OutlineInputBorder(borderSide:BorderSide(color:border)),
               focusedBorder:OutlineInputBorder(borderSide:BorderSide(color:keyGlow,width:2)),
               isDense:true,
@@ -216,12 +216,6 @@ extension EBuLaEditor on _EBuLaScreenState {
     })).toList();
     await prefs.setStringList('custom_timetables',jsonList);
     if(!mounted)return;
-    setState(() {
-      customTimetables=current;
-      all=[...all.where((t)=>!customTimetables.any((c)=>c.id==t.id)),...current];
-      train=data;
-      marker=0;
-      page=0;
-    });
+    applyCustomTimetableState(data,current);
   }
 }
