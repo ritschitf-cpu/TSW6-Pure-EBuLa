@@ -215,7 +215,7 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
                     ),
                   ),
             ],
-          ))
+          )),
           Container(height:34,color:const Color(0xff25292b),padding:const EdgeInsets.symmetric(horizontal:10),child:const Align(
             alignment:Alignment.centerLeft,child:Text('Demo-/Beispieldaten – eigene Testfahrpläne',style:TextStyle(color:Colors.white60,fontSize:10)),
           )),
@@ -424,7 +424,7 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   ));
 
   Widget status()=>Container(height:25,color:bar,padding:const EdgeInsets.symmetric(horizontal:5),child:Row(children:[
-    Text((displayMode=='location'?'ORT':'')+' '+(opposite?'RW/l':'RW/r',style:TextStyle(color:fg,fontSize:9,fontWeight:FontWeight.bold)),
+    Text((displayMode=='location'?'ORT':'')+' '+(opposite?'RW/l':'RW/r'),style:TextStyle(color:fg,fontSize:9,fontWeight:FontWeight.bold)),
     const SizedBox(width:12),Text('GSM-R',style:TextStyle(color:fg,fontSize:9)),
     const Spacer(),Text('V='+(point?.speed?.toString()??train?.maxSpeed.toString()??'0')+' km/h',style:TextStyle(color:fg,fontSize:9,fontWeight:FontWeight.bold)),
     const SizedBox(width:12),Text('km '+(point?.km.toStringAsFixed(1)??'--'),style:TextStyle(color:fg,fontSize:9)),
