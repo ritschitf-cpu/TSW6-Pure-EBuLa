@@ -40,6 +40,8 @@ recording = False
 record_samples = []
 record_started = None
 record_file = None
+route_cache = []
+route_cache_mtime = 0.0
 
 
 def key_candidates():
@@ -184,6 +186,55 @@ def route_hint(player_info, vehicle_id, loco):
     return " ".join(parts)
 
 
+def route_distance_m(lat1,lon1,lat2,lon2):
+    r=6371000.0
+    p1=math.radians(lat1); p2=math.radians(lat2)
+    dp=math.radians(lat2-lat1); dl=math.radians(lon2-lon1)
+    h=math.sin(dp/2)**2+math.cos(p1)*math.cos(p2)*math.sin(dl/2)**2
+    return 2*r*math.asin(math.sqrt(h))
+
+
+def load_route_cache():
+    global route_cache, route_cache_mtime
+    directory=Path(__file__).resolve().parent/"routes"
+    directory.mkdir(parents=True,exist_ok=True)
+    try:
+        latest=max((p.stat().st_mtime for p in directory.glob("*.json")),default=0.0)
+    except OSError:
+        latest=0.0
+    if latest == route_cache_mtime:
+        return route_cache
+    loaded=[]
+    for path in directory.glob("*.json"):
+        try:
+            data=json.loads(path.read_text(encoding="utf-8"))
+            points=data.get("points",[])
+            if isinstance(points,list) and len(points)>=2:
+                loaded.append({"id":data.get("id",path.stem),"name":data.get("name",path.stem),"points":points})
+        except (OSError,ValueError,TypeError):
+            continue
+    route_cache=loaded
+    route_cache_mtime=latest
+    return route_cache
+
+
+def match_route(lat,lon):
+    if lat is None or lon is None:
+        return None
+    best=None
+    for route in load_route_cache():
+        for point in route["points"]:
+            try:
+                plat=float(point["latitude"]); plon=float(point["longitude"])
+                km=float(point["km"])
+            except (KeyError,TypeError,ValueError):
+                continue
+            d=route_distance_m(lat,lon,plat,plon)
+            if best is None or d < best["distanceM"]:
+                best={"routeId":route["id"],"routeName":route["name"],"km":km,"distanceM":d,"point":point}
+    return best
+
+
 def record_sample(snapshot):
     global record_samples
     with record_lock:
@@ -269,6 +320,7 @@ def poll_loop():
             aid = get_driver_aid()
             track = get_track_data()
 
+            matched = match_route(lat, lon)
             with lock:
                 state["tsw"]["connected"] = True
                 state["tsw"]["game"] = meta.get("GameName")
@@ -284,6 +336,7 @@ def poll_loop():
                 state["trackData"] = track
                 state["timestamp"] = time.time()
                 state["error"] = None
+                state["routeMatch"] = matched or {"routeId": None, "routeName": None, "km": None, "distanceM": None, "point": None}
             with lock:
                 snapshot = json.loads(json.dumps(state))
             record_sample(snapshot)
