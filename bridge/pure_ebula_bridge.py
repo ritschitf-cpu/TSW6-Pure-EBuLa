@@ -4,7 +4,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from urllib.request import Request, urlopen
 
 TSW_BASE = "http://127.0.0.1:31270"
@@ -13,7 +13,7 @@ BRIDGE_PORT = 8080
 POLL_SECONDS = 0.5
 
 state = {
-    "bridge": {"name": "Pure EBuLa Bridge", "version": "0.2.0"},
+    "bridge": {"name": "Pure EBuLa Bridge", "version": "0.3.0"},
     "tsw": {
         "connected": False, "api": TSW_BASE, "game": None, "build": None,
         "routeHint": "", "vehicleId": None, "loco": None
@@ -30,9 +30,16 @@ state = {
     "driverAid": None,
     "timestamp": None,
     "error": None,
+    "recording": {"active": False, "samples": 0, "file": None, "started": None},
+    "routeMatch": {"routeId": None, "km": None, "distanceM": None, "point": None},
 }
 lock = threading.Lock()
 api_key = None
+record_lock = threading.Lock()
+recording = False
+record_samples = []
+record_started = None
+record_file = None
 
 
 def key_candidates():
@@ -177,6 +184,68 @@ def route_hint(player_info, vehicle_id, loco):
     return " ".join(parts)
 
 
+def record_sample(snapshot):
+    global record_samples
+    with record_lock:
+        if not recording:
+            return
+        record_samples.append({
+            "t": time.time(),
+            "simTime": snapshot.get("simTime"),
+            "latitude": snapshot.get("position", {}).get("latitude"),
+            "longitude": snapshot.get("position", {}).get("longitude"),
+            "speed": snapshot.get("speed"),
+            "direction": snapshot.get("direction"),
+            "vehicleId": snapshot.get("tsw", {}).get("vehicleId"),
+            "loco": snapshot.get("tsw", {}).get("loco"),
+            "routeHint": snapshot.get("tsw", {}).get("routeHint"),
+            "trackData": snapshot.get("trackData"),
+            "driverAid": snapshot.get("driverAid"),
+        })
+
+
+def start_recording():
+    global recording, record_samples, record_started, record_file
+    with record_lock:
+        record_samples = []
+        record_started = time.time()
+        record_file = None
+        recording = True
+    with lock:
+        state["recording"] = {"active": True, "samples": 0, "file": None, "started": record_started}
+
+
+def stop_recording():
+    global recording, record_file
+    with record_lock:
+        recording = False
+        samples = list(record_samples)
+        started = record_started
+        if samples:
+            out_dir = Path(__file__).resolve().parent / "recordings"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            stamp = time.strftime("%Y%m%d-%H%M%S")
+            path = out_dir / ("tsw6-route-%s.json" % stamp)
+            payload = {
+                "format": "pure-ebula-route-recording-v1",
+                "started": started,
+                "stopped": time.time(),
+                "samples": samples,
+            }
+            path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            record_file = str(path)
+        else:
+            record_file = None
+    with lock:
+        state["recording"] = {"active": False, "samples": len(samples), "file": record_file, "started": started}
+    return record_file, len(samples)
+
+
+def recording_snapshot():
+    with record_lock:
+        return {"active": recording, "samples": len(record_samples), "file": record_file, "started": record_started}
+
+
 def poll_loop():
     global api_key
     while True:
@@ -215,6 +284,9 @@ def poll_loop():
                 state["trackData"] = track
                 state["timestamp"] = time.time()
                 state["error"] = None
+            with lock:
+                snapshot = json.loads(json.dumps(state))
+            record_sample(snapshot)
         except Exception as exc:
             with lock:
                 state["tsw"]["connected"] = False
@@ -244,6 +316,18 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
+    def do_POST(self):
+        path=urlparse(self.path).path
+        if path == "/api/record/start":
+            start_recording()
+            self.send_json({"ok": True, "recording": recording_snapshot()})
+            return
+        if path == "/api/record/stop":
+            file_path, samples = stop_recording()
+            self.send_json({"ok": True, "recording": recording_snapshot(), "file": file_path, "samples": samples})
+            return
+        self.send_json({"error": "not_found"}, 404)
+
     def do_GET(self):
         with lock:
             payload = json.loads(json.dumps(state))
@@ -262,6 +346,27 @@ class Handler(BaseHTTPRequestHandler):
                 "ok": True,
                 "tswConnected": payload["tsw"]["connected"],
                 "simTime": payload["simTime"],
+                "positionLive": payload["position"]["latitude"] is not None and payload["position"]["longitude"] is not None,
+                "speedLive": payload["speed"] is not None,
+            })
+        elif self.path == "/api/record/status":
+            self.send_json({"recording": recording_snapshot(), "tsw": payload["tsw"], "position": payload["position"]})
+        elif self.path == "/api/diagnostics":
+            self.send_json({
+                "tswConnected": payload["tsw"]["connected"],
+                "apiKeyFound": api_key is not None,
+                "positionLive": payload["position"]["latitude"] is not None and payload["position"]["longitude"] is not None,
+                "latitude": payload["position"]["latitude"],
+                "longitude": payload["position"]["longitude"],
+                "simTime": payload["simTime"],
+                "speed": payload["speed"],
+                "vehicleId": payload["tsw"]["vehicleId"],
+                "loco": payload["tsw"]["loco"],
+                "routeHint": payload["tsw"]["routeHint"],
+                "trackDataPresent": payload["trackData"] is not None,
+                "driverAidPresent": payload["driverAid"] is not None,
+                "recording": recording_snapshot(),
+                "error": payload["error"],
             })
         else:
             self.send_json({"error": "not_found"}, 404)
@@ -279,10 +384,11 @@ def local_ip():
 
 
 def main():
-    print("Pure EBuLa Bridge 0.2")
+    print("Pure EBuLa Bridge 0.3")
     print("====================")
     print("TSW API: http://127.0.0.1:31270")
     print("Bridge:  http://%s:%d" % (local_ip(), BRIDGE_PORT))
+    print("Recorder: POST /api/record/start  ->  /api/record/stop")
     print("TSW6 muss mit -HTTPAPI laufen.")
     print("Suche CommAPIKey.txt automatisch...")
     global api_key
