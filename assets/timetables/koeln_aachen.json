@@ -1,55 +1,36 @@
 {
-  "id": "koeln-aachen-demo",
-  "trainNumber": "ICE 15",
-  "service": "TSW6 · Schnellfahrstrecke Köln – Aachen",
-  "validity": "TSW-Strecke · Demo-Fahrplan",
-  "date": "28.09.2026",
-  "vehicle": "BR 406 ICE 3M",
-  "maxSpeed": 250,
-  "lengthMeters": 200,
-  "massTons": 450,
-  "stops": [
-    {
-      "name": "Köln Hbf",
-      "km": 0,
-      "arrival": "10:02",
-      "departure": "10:04",
-      "speed": 80
-    },
-    {
-      "name": "Köln-Ehrenfeld",
-      "km": 4.8,
-      "arrival": "10:09",
-      "departure": "10:10",
-      "speed": 160
-    },
-    {
-      "name": "Düren",
-      "km": 52,
-      "arrival": "10:39",
-      "departure": "10:40",
-      "speed": 200
-    },
-    {
-      "name": "Langerwehe",
-      "km": 65.4,
-      "arrival": "10:48",
-      "departure": "10:49",
-      "speed": 200
-    },
-    {
-      "name": "Eschweiler Hbf",
-      "km": 70.8,
-      "arrival": "10:54",
-      "departure": "10:55",
-      "speed": 160
-    },
-    {
-      "name": "Aachen Hbf",
-      "km": 78.6,
-      "arrival": "11:02",
-      "departure": "11:04",
-      "speed": 120
-    }
+  "id":"koeln-aachen-re1-2026",
+  "trainNumber":"RE 1",
+  "service":"Köln Hbf – Aachen Hbf",
+  "serviceType":"Regional",
+  "serviceTypes":["Regional"],
+  "validity":"Fahrplan 2025/26 · RE 1 / TSW6",
+  "date":"2026",
+  "vehicle":"RRX / BR 462",
+  "maxSpeed":160,
+  "lengthMeters":160,
+  "massTons":400,
+  "notes":"Streckendaten nach öffentlich zugänglichen Buchfahrplan-/TSW-Unterlagen; Fahrzeiten sind ein konkreter RE-1-Beispielumlauf und können im Editor geändert werden.",
+  "stops":[
+    {"name":"Köln Hbf","km":0.0,"speed":40,"departure":"12:15","kind":"Bf"},
+    {"name":"Köln Hansaring","km":0.8,"speed":70,"kind":"Bf","note":"Bf. Köln Hansaring"},
+    {"name":"Köln Ehrenfeld","km":3.8,"speed":160,"arrival":"12:19","departure":"12:19","kind":"Bf"},
+    {"name":"Köln Mungersdorf Technologiepark","km":5.9,"speed":140,"kind":"Bf"},
+    {"name":"Köln Lövenich","km":9.6,"speed":120,"kind":"Bf"},
+    {"name":"Köln Weiden West","km":11.0,"speed":140,"kind":"Bf"},
+    {"name":"Frechen-Königsdorf","km":13.7,"speed":140,"kind":"Bf"},
+    {"name":"Horrem","km":18.6,"speed":140,"arrival":"12:28","departure":"12:28","kind":"Bf"},
+    {"name":"Sindorf","km":21.4,"speed":160,"kind":"Bf"},
+    {"name":"Buir","km":30.3,"speed":120,"kind":"Bf"},
+    {"name":"Merzenich","km":34.9,"speed":140,"kind":"Bf"},
+    {"name":"Düren Hbf","km":39.2,"speed":200,"arrival":"12:38","departure":"12:38","kind":"Bf"},
+    {"name":"LZB Ende","km":41.9,"speed":160,"kind":"LZB","note":"LZB Ende"},
+    {"name":"Langerwehe","km":48.9,"speed":160,"kind":"Bf"},
+    {"name":"Nothberg","km":54.1,"speed":160,"kind":"Hp"},
+    {"name":"Eschweiler Hbf","km":56.8,"speed":160,"arrival":"12:53","departure":"12:53","kind":"Bf"},
+    {"name":"Stolberg Hbf","km":60.2,"speed":110,"kind":"Bf"},
+    {"name":"Eilendorf","km":64.9,"speed":140,"kind":"Bf"},
+    {"name":"Aachen-Rote Erde","km":68.1,"speed":100,"kind":"Bf"},
+    {"name":"Aachen Hbf","km":70.1,"speed":40,"arrival":"13:07","kind":"Bf"}
   ]
 }
