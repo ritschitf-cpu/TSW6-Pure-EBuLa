@@ -123,7 +123,7 @@ extension EBuLaEditor on _EBuLaScreenState {
                 padding:const EdgeInsets.all(8),
                 decoration:BoxDecoration(border:Border(top:BorderSide(color:border)),color:bar),
                 child:Row(children:[
-                  Expanded(child:field(TextEditingController(text:''),'',width:1)),
+                  const SizedBox(width:1),
                   Text('Streckendaten hinzufügen →',style:TextStyle(color:fg,fontSize:10,fontWeight:FontWeight.bold)),
                   const SizedBox(width:8),
                   _editorAddButton(context,setLocal,rows),
@@ -159,7 +159,7 @@ extension EBuLaEditor on _EBuLaScreenState {
                       trainNumber:trainNo.text.trim(),
                       service:route.text.trim(),
                       serviceType:trainNo.text.trim().startsWith('ICE')?'ICE':trainNo.text.trim().startsWith('IC')?'IC':'Regional',
-                      serviceTypes:const ['Regional','IC','ICE','S-Bahn'],
+                      serviceTypes:<String>[trainNo.text.trim().startsWith('ICE')?'ICE':trainNo.text.trim().startsWith('IC')?'IC':'Regional'],
                       validity:validity.text.trim(),
                       date:date.text.trim(),
                       vehicle:vehicle.text.trim(),
