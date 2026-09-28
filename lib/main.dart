@@ -344,7 +344,12 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   }
 
   Widget sideKeys()=>SizedBox(width:58,child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
-    sideKey('▲','▲'),const SizedBox(height:6),sideKey('◀','⯇'),const SizedBox(height:6),sideKey('▶','⯈'),const SizedBox(height:6),sideKey('▼','▼'),
+    sideKey('▲','▲'),const SizedBox(height:5),
+    sideKey('E','E'),const SizedBox(height:5),
+    sideKey('◀','⯇'),const SizedBox(height:5),
+    sideKey('▶','⯈'),const SizedBox(height:5),
+    sideKey('C','C'),const SizedBox(height:5),
+    sideKey('▼','▼'),
   ]));
   Widget sideKey(String label,String actionName)=>Expanded(child:Padding(padding:const EdgeInsets.symmetric(vertical:1),child:InkWell(onTap:()=>action(actionName),child:Container(alignment:Alignment.center,decoration:BoxDecoration(color:const Color(0xff080808),border:Border.all(color:keyGlow,width:keyLightMode=='off'?1:2),borderRadius:BorderRadius.circular(3)),child:Text(label,style:TextStyle(color:keyGlow,fontSize:22,fontWeight:FontWeight.bold))))));
   Widget bottomKeys(){
