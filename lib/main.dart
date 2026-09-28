@@ -94,7 +94,8 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   Timer? clockTimer;
   DateTime clock = DateTime(2026,9,28,8,4,37);
   int marker = 0, page = 0;
-  bool paused=false, night=false, dark=false, fullscreen=false, opposite=false, markerPause=false;
+  bool paused=false, night=false, dark=false, fullscreen=false, opposite=false, markerPause=false, keyLights=false;
+  String keyLightMode='orange';
   String overlay='';
 
   Color get bg => night ? const Color(0xff071018) : (dark ? const Color(0xff090b0c) : const Color(0xffeeeeee));
@@ -148,6 +149,7 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     else if(a=='GW'){setState(()=>opposite=!opposite);}
     else if(a=='Zeit'){showTime();}
     else if(a=='S'){setState(()=>paused=!paused);}
+    else if(a=='I'){showKeyLightSettings();}
     else if(a=='-5s'){adjust(-5);}
     else if(a=='+5s'){adjust(5);}
     else if(a=='Tag/Nacht'){setState(()=>night=!night);}
@@ -206,6 +208,27 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     ));
   }
 
+  void showKeyLightSettings(){
+    showDialog(context:context,builder:(_)=>StatefulBuilder(builder:(c,setLocal)=>AlertDialog(
+      backgroundColor:const Color(0xff202426),
+      title:const Text('Tastenbeleuchtung',style:TextStyle(color:Colors.white)),
+      content:Column(mainAxisSize:MainAxisSize.min,children:[
+        RadioListTile<String>(value:'off',groupValue:keyLightMode,title:const Text('Aus',style:TextStyle(color:Colors.white)),onChanged:(v){setLocal(()=>keyLightMode=v!);setState((){});}),
+        RadioListTile<String>(value:'orange',groupValue:keyLightMode,title:const Text('Orange',style:TextStyle(color:Colors.white)),onChanged:(v){setLocal(()=>keyLightMode=v!);setState((){});}),
+        RadioListTile<String>(value:'yellow',groupValue:keyLightMode,title:const Text('Gelb',style:TextStyle(color:Colors.white)),onChanged:(v){setLocal(()=>keyLightMode=v!);setState((){});}),
+        RadioListTile<String>(value:'auto',groupValue:keyLightMode,title:const Text('Automatisch',style:TextStyle(color:Colors.white)),onChanged:(v){setLocal(()=>keyLightMode=v!);setState((){});}),
+      ]),
+      actions:[TextButton(onPressed:()=>Navigator.pop(context),child:const Text('E',style:TextStyle(color:Color(0xfff0b15b))))],
+    )));
+  }
+
+  Color get keyGlow {
+    if(keyLightMode=='yellow') return const Color(0xffffd35a);
+    if(keyLightMode=='orange') return const Color(0xfff0a13a);
+    if(keyLightMode=='auto') return night ? const Color(0xffffc65a) : const Color(0xfff0a13a);
+    return const Color(0xff3c3c3c);
+  }
+
   void showTime(){
     int h=clock.hour,m=clock.minute;
     showDialog(context:context,builder:(_)=>StatefulBuilder(builder:(c,setLocal)=>AlertDialog(
@@ -242,7 +265,7 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     const labels=['aus','S','I','St','V>0','V=0','✸','◑','UD'];
     return Container(height:49,color:const Color(0xff101010),padding:const EdgeInsets.fromLTRB(10,7,10,4),child:Row(
       children:labels.map((l)=>Expanded(child:Padding(padding:const EdgeInsets.symmetric(horizontal:4),child:physicalKey(l,()=>action(
-        l=='S'?'S':l=='✸'?'Tag/Nacht':l=='◑'?'Hell/Dunkel':l=='UD'?'UD':''
+        l=='S'?'S':l=='I'?'I':l=='✸'?'Tag/Nacht':l=='◑'?'Hell/Dunkel':l=='UD'?'UD':''
       ))))).toList(),
     ));
   }
@@ -257,8 +280,8 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
 
   Widget physicalKey(String text,VoidCallback onTap)=>SizedBox(height:34,child:InkWell(onTap:onTap,child:Container(
     alignment:Alignment.center,
-    decoration:BoxDecoration(color:const Color(0xff080808),border:Border.all(color:const Color(0xffd08a35),width:1.4),borderRadius:BorderRadius.circular(3)),
-    child:Text(text,style:const TextStyle(color:Color(0xfff0b15b),fontWeight:FontWeight.bold,fontSize:12)),
+    decoration:BoxDecoration(color:const Color(0xff080808),border:Border.all(color:keyGlow,width:keyLightMode=='off'?1.0:2.0),borderRadius:BorderRadius.circular(3),boxShadow:keyLightMode=='off'?const []:[BoxShadow(color:Color(0x66f0a13a),blurRadius:5,spreadRadius:.3)]),
+    child:Text(text,style:TextStyle(color:keyGlow,fontWeight:FontWeight.bold,fontSize:12,shadows:keyLightMode=='off'?const []:[Shadow(color:keyGlow,blurRadius:4)])),
   )));
 
   Widget screen(){
