@@ -292,10 +292,11 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     }
   }
   String clockText()=>clock.hour.toString().padLeft(2,'0')+':'+clock.minute.toString().padLeft(2,'0')+':'+clock.second.toString().padLeft(2,'0');
-  StopPoint? get point => train==null || train!.stops.isEmpty ? null : train!.stops[marker];
+  List<StopPoint> get orientedStops => opposite ? (train?.stops.reversed.toList() ?? const <StopPoint>[]) : (train?.stops ?? const <StopPoint>[]);
+  StopPoint? get point => orientedStops.isEmpty ? null : orientedStops[marker.clamp(0,orientedStops.length-1)];
   void move(int d){
-    if(train==null) return;
-    setState(()=>marker=(marker+d).clamp(0,train!.stops.length-1).toInt());
+    if(orientedStops.isEmpty||displayMode!='manual') return;
+    setState(()=>marker=(marker+d).clamp(0,orientedStops.length-1).toInt());
   }
   void pageMove(int d){
     if(train==null) return;
@@ -304,11 +305,11 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   void adjust(int s)=>setState(()=>clock=clock.add(Duration(seconds:s)));
 
   void action(String a){
-    if(a=='G'){setState(()=>{overlay='',panel=''}); return;}
+    if(a=='G'){setState(() { overlay=''; panel=''; }); return;}
     if(a=='aus'){setState(()=>panel='system');}
     else if(a=='Zug'){setState(()=>panel='train');}
     else if(a=='FSD'){setState(()=>panel='route');}
-    else if(a=='GW'){setState((){if(train!=null&&!orientedStops.isEmpty)marker=orientedStops.length-1-marker;opposite=!opposite;page=0;});}
+    else if(a=='GW'){setState(() { if(!orientedStops.isEmpty) marker=orientedStops.length-1-marker; opposite=!opposite; page=0; });}
     else if(a=='Zeit'){setState(()=>panel='mode');}
     else if(a=='S'){setState(() { paused=!paused; _lastRealTick=DateTime.now(); });}
     else if(a=='I'){setState(()=>panel='keylight');}
@@ -691,11 +692,11 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     if(panel=='train')return _trainPanel();
     if(panel=='mode')return EmbeddedModePanel(
       key:modePanelKey,mode:displayMode,clock:clock,
-      onConfirm:(m,h,mi)=>setState(()=>{displayMode=m,clock=DateTime(clock.year,clock.month,clock.day,h,mi,clock.second),panel=''}),
+      onConfirm:(m,h,mi){setState(() { displayMode=m; clock=DateTime(clock.year,clock.month,clock.day,h,mi,clock.second); panel=''; });},
     );
     if(panel=='bridge')return EmbeddedBridgePanel(
       key:bridgePanelKey,host:bridgeHost,port:bridgePort,status:bridgeStatus,busy:bridgeBusy,
-      onConfirm:(h,p)async{setState(()=>{bridgeHost=h;bridgePort=p});await connectBridge();if(mounted)setState(()=>panel='');},
+      onConfirm:(h,p)async{setState(() { bridgeHost=h; bridgePort=p; }); await connectBridge(); if(mounted)setState(()=>panel='');},
     );
     if(panel=='keylight')return _keylightPanel();
     if(panel=='route')return _routePanel();
@@ -734,7 +735,7 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   Widget _trainPanel()=>ListView(padding:const EdgeInsets.all(8),children:[
     for(final t in all)
       for(final type in t.serviceTypes)
-        InkWell(onTap:()=>setState(()=>{train=t.withServiceType(type),marker=0,page=0,panel=''}),child:Container(
+        InkWell(onTap:(){setState(() { train=t.withServiceType(type); marker=0; page=0; panel=''; });},child:Container(
           margin:const EdgeInsets.only(bottom:5),padding:const EdgeInsets.all(9),
           decoration:BoxDecoration(color:train?.id==t.id&&train?.serviceType==type?bar:bg,border:Border.all(color:border)),
           child:Row(children:[
