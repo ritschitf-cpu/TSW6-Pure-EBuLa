@@ -135,6 +135,8 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   String panel='';
   String displayMode='time';
   final editorPanelKey=GlobalKey<EmbeddedEditorPanelState>();
+  final modePanelKey=GlobalKey<EmbeddedModePanelState>();
+  final bridgePanelKey=GlobalKey<EmbeddedBridgePanelState>();
   List<TimetableData> customTimetables=[];
   Map<String,dynamic> liveState={};
   Timer? liveTimer;
@@ -323,7 +325,13 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     else if(a=='▼'){move(1);}
     else if(a=='⯇'){pageMove(-1);}
     else if(a=='⯈'){pageMove(1);}
-    else if(a=='E'){if(panel=='editor'){editorPanelKey.currentState?.save();}else if(panel.isNotEmpty){setState(()=>panel='');}else{setState(()=>markerPause=!markerPause);}}
+    else if(a=='E'){
+      if(panel=='editor'){editorPanelKey.currentState?.save();}
+      else if(panel=='mode'){modePanelKey.currentState?.confirm();}
+      else if(panel=='bridge'){bridgePanelKey.currentState?.confirm();}
+      else if(panel.isNotEmpty){setState(()=>panel='');}
+      else{setState(()=>markerPause=!markerPause);}
+    }
     else if(a=='C'){if(panel.isNotEmpty){setState(()=>panel='');}else{setState(()=>overlay='');}}
   }
 
@@ -682,11 +690,11 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     if(panel=='system')return _systemPanel();
     if(panel=='train')return _trainPanel();
     if(panel=='mode')return EmbeddedModePanel(
-      mode:displayMode,clock:clock,
+      key:modePanelKey,mode:displayMode,clock:clock,
       onConfirm:(m,h,mi)=>setState(()=>{displayMode=m,clock=DateTime(clock.year,clock.month,clock.day,h,mi,clock.second),panel=''}),
     );
     if(panel=='bridge')return EmbeddedBridgePanel(
-      host:bridgeHost,port:bridgePort,status:bridgeStatus,busy:bridgeBusy,
+      key:bridgePanelKey,host:bridgeHost,port:bridgePort,status:bridgeStatus,busy:bridgeBusy,
       onConfirm:(h,p)async{setState(()=>{bridgeHost=h;bridgePort=p});await connectBridge();if(mounted)setState(()=>panel='');},
     );
     if(panel=='keylight')return _keylightPanel();
