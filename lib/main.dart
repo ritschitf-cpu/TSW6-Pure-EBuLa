@@ -346,7 +346,7 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     const SizedBox(width:12),Text('GSM-R',style:TextStyle(color:fg,fontSize:9)),
     const Spacer(),Text('V='+(point?.speed?.toString()??train?.maxSpeed.toString()??'0')+' km/h',style:TextStyle(color:fg,fontSize:9,fontWeight:FontWeight.bold)),
     const SizedBox(width:12),Text('km '+(point?.km.toStringAsFixed(1)??'--'),style:TextStyle(color:fg,fontSize:9)),
-    const SizedBox(width:12),Text(markerPause?'PAUSE':(marker+1).toString()+'/'+(train?.stops.length??0),style:TextStyle(color:markerPause?const Color(0xffd94a4a):fg,fontSize:9,fontWeight:FontWeight.bold)),
+    const SizedBox(width:12),Text(markerPause?'PAUSE':(marker+1).toString()+'/'+(train?.stops.length??0).toString(),style:TextStyle(color:markerPause?const Color(0xffd94a4a):fg,fontSize:9,fontWeight:FontWeight.bold)),
   ]));
 
   Widget fsdOverlay()=>Positioned.fill(
