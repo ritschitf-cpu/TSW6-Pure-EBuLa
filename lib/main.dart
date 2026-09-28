@@ -178,7 +178,7 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
             padding:const EdgeInsets.all(8),itemCount:all.length,itemBuilder:(_,i){
               final t=all[i], selected=train?.id==t.id;
               return InkWell(
-                onTap:(){setState(()=>{train=t;resetPosition();overlay='';});Navigator.pop(context);},
+                onTap:(){setState(() { train=t; resetPosition(); overlay=''; });Navigator.pop(context);},
                 child:Container(
                   margin:const EdgeInsets.only(bottom:6),
                   padding:const EdgeInsets.symmetric(horizontal:10,vertical:9),
@@ -263,9 +263,14 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
 
   Widget screen(){
     final list=train?.stops.skip(page).take(8).toList() ?? const <StopPoint>[];
-    return Container(
-      decoration:BoxDecoration(color:bg,border:Border.all(color:const Color(0xff9aa1a5),width:2)),
-      child:Column(children:[header(),routeBar(),Expanded(child:table(list)),status(),softkeys(),]),
+    return Stack(
+      children:[
+        Container(
+          decoration:BoxDecoration(color:bg,border:Border.all(color:const Color(0xff9aa1a5),width:2)),
+          child:Column(children:[header(),routeBar(),Expanded(child:table(list)),status(),softkeys(),]),
+        ),
+        if(overlay=='FSD') fsdOverlay(),
+      ],
     );
   }
 
@@ -320,6 +325,39 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     const SizedBox(width:12),Text('km '+(point?.km.toStringAsFixed(1)??'--'),style:TextStyle(color:fg,fontSize:9)),
     const SizedBox(width:12),Text(markerPause?'PAUSE':(marker+1).toString()+'/'+(train?.stops.length??0),style:TextStyle(color:markerPause?const Color(0xffd94a4a):fg,fontSize:9,fontWeight:FontWeight.bold)),
   ]));
+
+  Widget fsdOverlay()=>Positioned.fill(
+    child:Container(
+      color:const Color(0xf20b0d0e),
+      padding:const EdgeInsets.all(14),
+      child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+        Row(children:[
+          Text('FSD – Fahrplan- und Streckendaten',style:const TextStyle(color:Colors.white,fontSize:17,fontWeight:FontWeight.bold)),
+          const Spacer(),
+          InkWell(onTap:()=>setState(()=>overlay=''),child:Container(
+            padding:const EdgeInsets.symmetric(horizontal:14,vertical:5),
+            decoration:BoxDecoration(color:Colors.black,border:Border.all(color:const Color(0xffd08a35))),
+            child:const Text('C',style:TextStyle(color:Color(0xfff0b15b),fontWeight:FontWeight.bold)),
+          )),
+        ]),
+        const SizedBox(height:8),
+        Text('Zug: '+(train?.trainNumber??'---')+'    Strecke: '+(train?.service??''),
+          style:const TextStyle(color:Colors.white,fontSize:11)),
+        Text('Fahrzeug: '+(train?.vehicle??'---')+'    Masse: '+(train?.massTons.toString()??'--')+' t    Länge: '+(train?.lengthMeters.toString()??'--')+' m    Vmax: '+(train?.maxSpeed.toString()??'--')+' km/h',
+          style:const TextStyle(color:Colors.white,fontSize:11)),
+        const SizedBox(height:7),
+        Expanded(child:ListView(
+          children:(train?.stops??const <StopPoint>[]).map((p)=>Padding(
+            padding:const EdgeInsets.symmetric(vertical:2),
+            child:Text(
+              p.km.toStringAsFixed(1).padLeft(6)+'   '+(p.note??p.name).padRight(25)+'   '+(p.arrival??'--:--')+'   '+(p.departure??'--:--'),
+              style:const TextStyle(color:Colors.white,fontSize:10),
+            ),
+          )).toList(),
+        )),
+      ]),
+    ),
+  );
 
   Widget softkeys(){
     const labels=[['Zug','Zug'],['FSD','FSD'],['',''],['▲','▲'],['▼','▼'],['GW','GW'],['Zeit','Zeit'],['',''],['⯇','◀'],['⯈','▶']];
