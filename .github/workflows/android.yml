@@ -16,6 +16,9 @@ jobs:
           cache: true
       - name: Generate Android platform
         run: flutter create . --platforms=android --project-name tsw6_pure_ebula --org de.pureebula
+      - name: Restore analyzer configuration
+        run: cp ci/analysis_options.yaml analysis_options.yaml
+
       - name: Dependencies
         run: flutter pub get
       - name: Analyze
