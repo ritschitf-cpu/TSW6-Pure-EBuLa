@@ -100,6 +100,7 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   TimetableData? train;
   Timer? clockTimer;
   DateTime clock = DateTime(2026,9,28,8,4,37);
+  DateTime _lastRealTick = DateTime.now();
   int marker = 0, page = 0;
   bool paused=false, night=false, dark=false, fullscreen=false, opposite=false, markerPause=false, keyLights=false;
   String keyLightMode='orange';
@@ -118,8 +119,27 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   @override void initState() {
     super.initState();
     load();
-    clockTimer = Timer.periodic(const Duration(seconds:1), (_) {
-      if (!paused && mounted) setState(() { clock = clock.add(const Duration(seconds:1)); if(displayMode=='time' && train!=null && train!.stops.isNotEmpty) { final next=train!.stops.indexWhere((p){ final t=p.arrival??p.departure; return t!=null && t==clock.hour.toString().padLeft(2,'0')+':'+clock.minute.toString().padLeft(2,'0'); }); if(next>=0) marker=next; } });
+    _lastRealTick = DateTime.now();
+    clockTimer = Timer.periodic(const Duration(milliseconds:250), (_) {
+      if (!paused && mounted) {
+        final now = DateTime.now();
+        final elapsed = now.difference(_lastRealTick);
+        _lastRealTick = now;
+        if (elapsed.inMilliseconds > 0) {
+          setState(() {
+            clock = clock.add(elapsed);
+            if (displayMode=='time' && train!=null && train!.stops.isNotEmpty) {
+              final nowText = clock.hour.toString().padLeft(2,'0')+':'+clock.minute.toString().padLeft(2,'0');
+              for (var i=0; i<train!.stops.length; i++) {
+                final t = train!.stops[i].arrival ?? train!.stops[i].departure;
+                if (t != null && t == nowText) { marker=i; break; }
+              }
+            }
+          });
+        }
+      } else {
+        _lastRealTick = DateTime.now();
+      }
     });
   }
   Future<void> load() async {
@@ -161,7 +181,7 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     else if(a=='FSD'){setState(()=>overlay=overlay=='FSD'?'':'FSD');}
     else if(a=='GW'){setState(()=>opposite=!opposite);}
     else if(a=='Zeit'){showTime();}
-    else if(a=='S'){setState(()=>paused=!paused);}
+    else if(a=='S'){setState(() { paused=!paused; _lastRealTick=DateTime.now(); });}
     else if(a=='I'){showKeyLightSettings();}
     else if(a=='St'){showBridge();}
     else if(a=='-5s'){adjust(-5);}
@@ -177,6 +197,7 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     else if(a=='⯇'){pageMove(-1);}
     else if(a=='⯈'){pageMove(1);}
     else if(a=='E'){setState(()=>markerPause=!markerPause);}
+    else if(a=='C'){setState(()=>overlay='');}
   }
 
   void showTrain(){
@@ -346,19 +367,35 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
   Widget sideKeys()=>SizedBox(width:58,child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
     sideKey('▲','▲'),const SizedBox(height:5),
     sideKey('E','E'),const SizedBox(height:5),
-    sideKey('◀','⯇'),const SizedBox(height:5),
-    sideKey('▶','⯈'),const SizedBox(height:5),
+    sideKey('<','⯇'),const SizedBox(height:5),
+    sideKey('>','⯈'),const SizedBox(height:5),
     sideKey('C','C'),const SizedBox(height:5),
     sideKey('▼','▼'),
   ]));
   Widget sideKey(String label,String actionName)=>Expanded(child:Padding(padding:const EdgeInsets.symmetric(vertical:1),child:InkWell(onTap:()=>action(actionName),child:Container(alignment:Alignment.center,decoration:BoxDecoration(color:const Color(0xff080808),border:Border.all(color:keyGlow,width:keyLightMode=='off'?1:2),borderRadius:BorderRadius.circular(3)),child:Text(label,style:TextStyle(color:keyGlow,fontSize:22,fontWeight:FontWeight.bold))))));
   Widget bottomKeys(){
-    const labels=['1','2','3','4','5','6','7','8','9','0'];
-    const actions=['Zug','FSD','','▲','▼','GW','Zeit','','','G'];
-    return Container(height:51,color:const Color(0xff0d0d0d),padding:const EdgeInsets.fromLTRB(9,3,9,7),child:Row(
-      children:List.generate(10,(i)=>Expanded(child:Padding(padding:const EdgeInsets.symmetric(horizontal:4),child:physicalKey(labels[i],()=>action(actions[i]))))),
+    const labels=['Zug','FSD','','▲','▼','GW','Zeit','','','G'];
+    const numbers=['1','2','3','4','5','6','7','8','9','0'];
+    return Container(height:55,color:const Color(0xff0d0d0d),padding:const EdgeInsets.fromLTRB(9,2,9,6),child:Row(
+      children:List.generate(10,(i)=>Expanded(child:Padding(
+        padding:const EdgeInsets.symmetric(horizontal:2),
+        child:physicalFunctionKey(labels[i],numbers[i],labels[i].isEmpty?null:()=>action(labels[i])),
+      ))),
     ));
   }
+
+  Widget physicalFunctionKey(String label,String number,VoidCallback? onTap)=>SizedBox(
+    height:43,
+    child:InkWell(onTap:onTap,child:Container(
+      alignment:Alignment.center,
+      decoration:BoxDecoration(color:const Color(0xff080808),border:Border.all(color:keyGlow,width:keyLightMode=='off'?1.0:1.5),borderRadius:BorderRadius.circular(3)),
+      child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
+        Text(label,style:TextStyle(color:keyGlow,fontWeight:FontWeight.bold,fontSize:10)),
+        const SizedBox(height:1),
+        Text(number,style:TextStyle(color:keyGlow,fontWeight:FontWeight.bold,fontSize:8)),
+      ]),
+    )),
+  );
 
   Widget physicalKey(String text,VoidCallback onTap)=>SizedBox(height:34,child:InkWell(onTap:onTap,child:Container(
     alignment:Alignment.center,
@@ -372,7 +409,7 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
       children:[
         Container(
           decoration:BoxDecoration(color:bg,border:Border.all(color:const Color(0xff9aa1a5),width:2)),
-          child:Column(children:[header(),routeBar(),Expanded(child:table(list)),status(),softkeys(),]),
+          child:Column(children:[header(),routeBar(),Expanded(child:table(list)),status(),]),
         ),
         if(overlay=='FSD') fsdOverlay(),
       ],
@@ -464,20 +501,7 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     ),
   );
 
-  Widget softkeys(){
-    const labels=[['Zug','Zug'],['FSD','FSD'],['',''],['▲','▲'],['▼','▼'],['GW','GW'],['Zeit','Zeit'],['',''],['',''],['G','G']];
-    return SizedBox(height:39,child:Row(children:List.generate(10,(i){
-      final enabled=labels[i][0].isNotEmpty;
-      return Expanded(child:Container(
-        margin:const EdgeInsets.symmetric(horizontal:.5),
-        decoration:BoxDecoration(color:enabled?const Color(0xff59656a):const Color(0xff444b4f),border:Border.all(color:const Color(0xff9ba3a7))),
-        child:InkWell(onTap:enabled?()=>action(labels[i][0]):null,child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[
-          Text((i+1).toString(),style:const TextStyle(color:Colors.white54,fontSize:8)),
-          Text(labels[i][1],style:const TextStyle(color:Colors.white,fontSize:10,fontWeight:FontWeight.bold)),
-        ])),
-      ));
-    })));
-  }
+
 }
 
 class TrackPainter extends CustomPainter {
