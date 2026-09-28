@@ -191,7 +191,7 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
         const SizedBox(width:18),
         Text(points.isEmpty?'km --':'km '+points[marker].km.toStringAsFixed(1),style:TextStyle(color:fg)),
         const Spacer(),
-        Text((opposite?'Gegengleis':'Regelgleis')+'   '+(marker+1).toString()+'/'+points.length,style:TextStyle(color:fg)),
+        Text((opposite?'Gegengleis':'Regelgleis')+'   '+(marker+1).toString()+'/'+points.length.toString(),style:TextStyle(color:fg)),
       ])),
     ]),
   );
@@ -227,7 +227,7 @@ class _EBuLaScreenState extends State<EBuLaScreen> {
     const SizedBox(height:14),
     Text('Halte / Betriebsstellen',style:TextStyle(color:fg,fontSize:18,fontWeight:FontWeight.bold)),
     Expanded(child:ListView(children:points.map((p)=>Text(p.km.toStringAsFixed(1).padLeft(6)+'   '+p.name.padRight(22)+'   '+(p.arrival??'--')+' / '+(p.departure??'--'),style:TextStyle(color:fg,fontSize:14,height:1.5))).toList())),
-  ]));
+  ])));
 
 }
 
